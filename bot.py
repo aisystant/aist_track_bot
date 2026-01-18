@@ -10,7 +10,10 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Optional
+from pathlib import Path
+from typing import Optional, List
+
+import yaml
 
 from aiogram import Bot, Dispatcher, Router, F
 from aiogram.types import (
@@ -285,14 +288,26 @@ class ClaudeClient:
         duration = STUDY_DURATIONS.get(str(intern['study_duration']), {"words": 1500})
         words = duration.get('words', 1500)
 
-        system_prompt = f"""Ты — персональный наставник.
+        system_prompt = f"""Ты — персональный наставник по системному мышлению и личному развитию.
 {get_personalization_prompt(intern)}
 
-Создай текст на {intern['study_duration']} минут чтения (~{words} слов). Без заголовков, только абзацы."""
+Создай текст на {intern['study_duration']} минут чтения (~{words} слов). Без заголовков, только абзацы.
+Текст должен быть вовлекающим, с примерами из жизни читателя."""
+
+        # Формируем контекст из структуры знаний
+        pain_point = topic.get('pain_point', '')
+        key_insight = topic.get('key_insight', '')
+        source = topic.get('source', '')
 
         user_prompt = f"""Тема: {topic.get('title')}
 Основное понятие: {topic.get('main_concept')}
-Связанные понятия: {', '.join(topic.get('related_concepts', []))}"""
+Связанные понятия: {', '.join(topic.get('related_concepts', []))}
+
+{"Боль читателя: " + pain_point if pain_point else ""}
+{"Ключевой инсайт: " + key_insight if key_insight else ""}
+{"Источник: " + source if source else ""}
+
+Начни с признания боли читателя, затем раскрой тему и подведи к ключевому инсайту."""
 
         result = await self.generate(system_prompt, user_prompt)
         return result or "Не удалось сгенерировать контент. Попробуйте /learn ещё раз."
@@ -310,37 +325,52 @@ class ClaudeClient:
 
 claude = ClaudeClient()
 
-# ============= ТЕМЫ =============
+# ============= СТРУКТУРА ЗНАНИЙ =============
 
-TOPICS = [
-    {
-        "id": "what-is-system",
-        "section": "Системное мышление",
-        "subsection": "Основы",
-        "title": "Что такое система",
-        "main_concept": "система",
-        "related_concepts": ["элементы", "связи", "эмерджентность"]
-    },
-    {
-        "id": "system-approach",
-        "section": "Системное мышление",
-        "subsection": "Основы",
-        "title": "Системный подход",
-        "main_concept": "системный подход",
-        "related_concepts": ["редукционизм", "холизм", "анализ"]
-    },
-    {
-        "id": "system-boundaries",
-        "section": "Системное мышление",
-        "subsection": "Основы",
-        "title": "Границы системы",
-        "main_concept": "границы системы",
-        "related_concepts": ["окружение", "интерфейс", "контекст"]
-    }
-]
+def load_knowledge_structure() -> List[dict]:
+    """Загружает структуру знаний из YAML файла"""
+    yaml_path = Path(__file__).parent / "knowledge_structure.yaml"
+
+    if not yaml_path.exists():
+        logger.warning(f"Файл {yaml_path} не найден, используем пустую структуру")
+        return []
+
+    with open(yaml_path, 'r', encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+
+    # Преобразуем иерархическую структуру в плоский список тем
+    topics = []
+    for section in data.get('sections', []):
+        section_title = section.get('title', '')
+        for topic in section.get('topics', []):
+            topics.append({
+                'id': topic.get('id', ''),
+                'section': section_title,
+                'subsection': f"Тема {topic.get('order', 0)}",
+                'title': topic.get('title', ''),
+                'main_concept': topic.get('main_concept', ''),
+                'related_concepts': topic.get('related_concepts', []),
+                'key_insight': topic.get('key_insight', ''),
+                'pain_point': topic.get('pain_point', ''),
+                'source': topic.get('source', '')
+            })
+
+    # Сортируем по порядку
+    topics.sort(key=lambda x: int(x['id'].split('-')[0]) * 100 + int(x['id'].split('-')[1]) if '-' in x['id'] else 0)
+
+    logger.info(f"✅ Загружено {len(topics)} тем из структуры знаний")
+    return topics
+
+# Загружаем темы при старте
+TOPICS = load_knowledge_structure()
 
 def get_topic(index: int) -> Optional[dict]:
+    """Получить тему по индексу"""
     return TOPICS[index] if index < len(TOPICS) else None
+
+def get_total_topics() -> int:
+    """Получить общее количество тем"""
+    return len(TOPICS)
 
 # ============= КЛАВИАТУРЫ =============
 
@@ -569,7 +599,7 @@ async def cmd_progress(message: Message):
         return
     
     done = len(intern['completed_topics'])
-    total = len(TOPICS)
+    total = get_total_topics()
     await message.answer(
         f"📊 *{intern['name']}*\n\n"
         f"✅ {done} из {total} тем\n"
@@ -642,7 +672,7 @@ async def on_answer(message: Message, state: FSMContext):
     )
     
     done = len(completed)
-    total = len(TOPICS)
+    total = get_total_topics()
     
     await message.answer(
         f"✅ *Тема засчитана!*\n\n"
