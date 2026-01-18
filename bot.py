@@ -87,6 +87,8 @@ class OnboardingStates(StatesGroup):
     waiting_for_role = State()
     waiting_for_domain = State()
     waiting_for_interests = State()
+    waiting_for_problems = State()
+    waiting_for_desires = State()
     waiting_for_experience = State()
     waiting_for_difficulty = State()
     waiting_for_learning_style = State()
@@ -97,6 +99,12 @@ class OnboardingStates(StatesGroup):
 
 class LearningStates(StatesGroup):
     waiting_for_answer = State()
+
+class UpdateStates(StatesGroup):
+    choosing_field = State()
+    updating_problems = State()
+    updating_desires = State()
+    updating_goals = State()
 
 # ============= БАЗА ДАННЫХ =============
 
@@ -119,6 +127,8 @@ async def init_db():
                 difficulty_preference TEXT DEFAULT '',
                 learning_style TEXT DEFAULT '',
                 study_duration INTEGER DEFAULT 15,
+                current_problems TEXT DEFAULT '',
+                desires TEXT DEFAULT '',
                 goals TEXT DEFAULT '',
                 schedule_time TEXT DEFAULT '09:00',
                 current_topic_index INTEGER DEFAULT 0,
@@ -129,10 +139,10 @@ async def init_db():
             )
         ''')
 
-        # Миграция: добавляем поле study_duration если его нет
-        await conn.execute('''
-            ALTER TABLE interns ADD COLUMN IF NOT EXISTS study_duration INTEGER DEFAULT 15
-        ''')
+        # Миграции
+        await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS study_duration INTEGER DEFAULT 15')
+        await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS current_problems TEXT DEFAULT \'\'')
+        await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS desires TEXT DEFAULT \'\'')
         
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS answers (
@@ -164,6 +174,8 @@ async def get_intern(chat_id: int) -> dict:
                 'difficulty_preference': row['difficulty_preference'],
                 'learning_style': row['learning_style'],
                 'study_duration': row['study_duration'],
+                'current_problems': row['current_problems'] or '',
+                'desires': row['desires'] or '',
                 'goals': row['goals'],
                 'schedule_time': row['schedule_time'],
                 'current_topic_index': row['current_topic_index'],
@@ -186,6 +198,8 @@ async def get_intern(chat_id: int) -> dict:
                 'difficulty_preference': '',
                 'learning_style': '',
                 'study_duration': 15,
+                'current_problems': '',
+                'desires': '',
                 'goals': '',
                 'schedule_time': '09:00',
                 'current_topic_index': 0,
@@ -230,6 +244,8 @@ def get_personalization_prompt(intern: dict) -> str:
     duration = STUDY_DURATIONS.get(str(intern['study_duration']), {"words": 1500})
 
     interests = ', '.join(intern['interests']) if intern['interests'] else 'не указаны'
+    problems = intern.get('current_problems', '') or 'не указаны'
+    desires = intern.get('desires', '') or 'не указаны'
 
     return f"""
 ПРОФИЛЬ СТАЖЕРА:
@@ -237,17 +253,21 @@ def get_personalization_prompt(intern: dict) -> str:
 - Роль: {intern['role']}
 - Предметная область: {intern['domain']}
 - Интересы: {interests}
+- Текущие проблемы/боли: {problems}
+- Желания/чего хочет достичь: {desires}
 - Уровень опыта: {exp.get('name', '')} ({exp.get('desc', '')})
 - Желаемая сложность: {diff.get('name', '')} ({diff.get('desc', '')})
 - Стиль обучения: {style.get('name', '')} ({style.get('desc', '')})
 - Время на изучение: {intern['study_duration']} минут (~{duration.get('words', 1500)} слов)
-- Цели: {intern['goals']}
+- Цели обучения: {intern['goals']}
 
 ИНСТРУКЦИИ:
 1. Используй примеры из области "{intern['domain']}" и интересов стажера
-2. Адаптируй сложность под уровень "{diff.get('name', 'средний')}"
-3. {'Начинай с теории' if intern['learning_style'] == 'theoretical' else 'Начинай с практических примеров' if intern['learning_style'] == 'practical' else 'Чередуй теорию и практику'}
-4. Объём текста должен быть рассчитан на {intern['study_duration']} минут чтения (~{duration.get('words', 1500)} слов)
+2. Связывай материал с текущими проблемами стажера — показывай, как тема помогает их решить
+3. Показывай, как изучение темы приближает к желаемым результатам стажера
+4. Адаптируй сложность под уровень "{diff.get('name', 'средний')}"
+5. {'Начинай с теории' if intern['learning_style'] == 'theoretical' else 'Начинай с практических примеров' if intern['learning_style'] == 'practical' else 'Чередуй теорию и практику'}
+6. Объём текста должен быть рассчитан на {intern['study_duration']} минут чтения (~{duration.get('words', 1500)} слов)
 """
 
 # ============= CLAUDE API =============
@@ -556,6 +576,14 @@ def kb_learn() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="⏭ Позже", callback_data="later")]
     ])
 
+def kb_update_profile() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="😓 Проблемы", callback_data="upd_problems")],
+        [InlineKeyboardButton(text="✨ Желания", callback_data="upd_desires")],
+        [InlineKeyboardButton(text="🎯 Цели", callback_data="upd_goals")],
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="upd_cancel")]
+    ])
+
 def progress_bar(completed: int, total: int) -> str:
     pct = int((completed / total) * 100) if total > 0 else 0
     return f"{'█' * (pct // 10)}{'░' * (10 - pct // 10)} {pct}%"
@@ -608,6 +636,28 @@ async def on_domain(message: Message, state: FSMContext):
 async def on_interests(message: Message, state: FSMContext):
     interests = [i.strip() for i in message.text.replace(',', ';').split(';') if i.strip()]
     await update_intern(message.chat.id, interests=interests)
+    await message.answer(
+        "Какие у тебя сейчас *главные проблемы или сложности*?\n\n"
+        "Например: не хватает времени, сложно сосредоточиться, "
+        "не знаю с чего начать, выгораю на работе...",
+        parse_mode="Markdown"
+    )
+    await state.set_state(OnboardingStates.waiting_for_problems)
+
+@router.message(OnboardingStates.waiting_for_problems)
+async def on_problems(message: Message, state: FSMContext):
+    await update_intern(message.chat.id, current_problems=message.text.strip())
+    await message.answer(
+        "А чего ты *хочешь достичь*? Какой результат был бы для тебя идеальным?\n\n"
+        "Например: научиться управлять временем, стать увереннее, "
+        "разобраться в системном мышлении, найти своё дело...",
+        parse_mode="Markdown"
+    )
+    await state.set_state(OnboardingStates.waiting_for_desires)
+
+@router.message(OnboardingStates.waiting_for_desires)
+async def on_desires(message: Message, state: FSMContext):
+    await update_intern(message.chat.id, desires=message.text.strip())
     await message.answer("Какой у тебя уровень опыта?", reply_markup=kb_experience())
     await state.set_state(OnboardingStates.waiting_for_experience)
 
@@ -671,12 +721,17 @@ async def on_schedule(message: Message, state: FSMContext):
     style = LEARNING_STYLES.get(intern['learning_style'], {})
     duration = STUDY_DURATIONS.get(str(intern['study_duration']), {})
 
+    problems_short = intern['current_problems'][:100] + '...' if len(intern['current_problems']) > 100 else intern['current_problems']
+    desires_short = intern['desires'][:100] + '...' if len(intern['desires']) > 100 else intern['desires']
+
     await message.answer(
         f"📋 *Твой профиль:*\n\n"
         f"👤 {intern['name']}\n"
         f"💼 {intern['role']}\n"
         f"🎯 {intern['domain']}\n"
         f"🎨 {', '.join(intern['interests'])}\n\n"
+        f"😓 *Проблемы:* {problems_short}\n"
+        f"✨ *Желания:* {desires_short}\n\n"
         f"{exp.get('emoji','')} {exp.get('name','')}\n"
         f"{diff.get('emoji','')} {diff.get('name','')}\n"
         f"{style.get('emoji','')} {style.get('name','')}\n"
@@ -764,16 +819,23 @@ async def cmd_profile(message: Message):
     style = LEARNING_STYLES.get(intern['learning_style'], {})
     duration = STUDY_DURATIONS.get(str(intern['study_duration']), {})
 
+    problems_short = intern['current_problems'][:100] + '...' if len(intern['current_problems']) > 100 else intern['current_problems']
+    desires_short = intern['desires'][:100] + '...' if len(intern['desires']) > 100 else intern['desires']
+
     await message.answer(
         f"👤 *{intern['name']}*\n"
         f"💼 {intern['role']}\n"
         f"🎯 {intern['domain']}\n"
         f"🎨 {', '.join(intern['interests'])}\n\n"
+        f"😓 *Проблемы:* {problems_short}\n"
+        f"✨ *Желания:* {desires_short}\n\n"
         f"{exp.get('emoji','')} {exp.get('name','')}\n"
         f"{diff.get('emoji','')} {diff.get('name','')}\n"
         f"{style.get('emoji','')} {style.get('name','')}\n"
         f"{duration.get('emoji','')} {duration.get('name','')} на тему\n\n"
-        f"⏰ Обучение в {intern['schedule_time']}",
+        f"🎯 {intern['goals']}\n"
+        f"⏰ Обучение в {intern['schedule_time']}\n\n"
+        f"/update — обновить профиль",
         parse_mode="Markdown"
     )
 
@@ -785,6 +847,7 @@ async def cmd_help(message: Message):
         "/learn — получить новую тему для изучения\n"
         "/progress — посмотреть свой прогресс\n"
         "/profile — посмотреть свой профиль\n"
+        "/update — обновить проблемы, желания, цели\n"
         "/help — показать эту справку\n\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n\n"
         "*Как работает обучение:*\n"
@@ -795,6 +858,93 @@ async def cmd_help(message: Message):
         "Материал буду отправлять в заданное время или по /learn",
         parse_mode="Markdown"
     )
+
+# --- Обновление профиля ---
+
+@router.message(Command("update"))
+async def cmd_update(message: Message, state: FSMContext):
+    intern = await get_intern(message.chat.id)
+    if not intern['onboarding_completed']:
+        await message.answer("Сначала пройди онбординг: /start")
+        return
+
+    await message.answer(
+        "Что хочешь обновить?\n\n"
+        "Это поможет мне лучше персонализировать материалы под тебя.",
+        reply_markup=kb_update_profile()
+    )
+    await state.set_state(UpdateStates.choosing_field)
+
+@router.callback_query(UpdateStates.choosing_field, F.data == "upd_problems")
+async def on_upd_problems(callback: CallbackQuery, state: FSMContext):
+    intern = await get_intern(callback.message.chat.id)
+    await callback.answer()
+    await callback.message.edit_text(
+        f"😓 *Текущие проблемы:*\n{intern['current_problems'] or 'не указаны'}\n\n"
+        "Опиши свои актуальные проблемы и сложности:",
+        parse_mode="Markdown"
+    )
+    await state.set_state(UpdateStates.updating_problems)
+
+@router.callback_query(UpdateStates.choosing_field, F.data == "upd_desires")
+async def on_upd_desires(callback: CallbackQuery, state: FSMContext):
+    intern = await get_intern(callback.message.chat.id)
+    await callback.answer()
+    await callback.message.edit_text(
+        f"✨ *Текущие желания:*\n{intern['desires'] or 'не указаны'}\n\n"
+        "Чего ты хочешь достичь? Какой результат был бы идеальным?",
+        parse_mode="Markdown"
+    )
+    await state.set_state(UpdateStates.updating_desires)
+
+@router.callback_query(UpdateStates.choosing_field, F.data == "upd_goals")
+async def on_upd_goals(callback: CallbackQuery, state: FSMContext):
+    intern = await get_intern(callback.message.chat.id)
+    await callback.answer()
+    await callback.message.edit_text(
+        f"🎯 *Текущие цели обучения:*\n{intern['goals'] or 'не указаны'}\n\n"
+        "Какие у тебя цели обучения?",
+        parse_mode="Markdown"
+    )
+    await state.set_state(UpdateStates.updating_goals)
+
+@router.callback_query(UpdateStates.choosing_field, F.data == "upd_cancel")
+async def on_upd_cancel(callback: CallbackQuery, state: FSMContext):
+    await callback.answer("Отменено")
+    await callback.message.edit_text("Хорошо! Можешь продолжить обучение: /learn")
+    await state.clear()
+
+@router.message(UpdateStates.updating_problems)
+async def on_save_problems(message: Message, state: FSMContext):
+    await update_intern(message.chat.id, current_problems=message.text.strip())
+    await message.answer(
+        "✅ Проблемы обновлены!\n\n"
+        "Теперь материалы будут ещё лучше персонализированы под твою ситуацию.\n\n"
+        "/learn — продолжить обучение\n"
+        "/update — обновить ещё что-то"
+    )
+    await state.clear()
+
+@router.message(UpdateStates.updating_desires)
+async def on_save_desires(message: Message, state: FSMContext):
+    await update_intern(message.chat.id, desires=message.text.strip())
+    await message.answer(
+        "✅ Желания обновлены!\n\n"
+        "Теперь материалы будут показывать, как достичь твоих целей.\n\n"
+        "/learn — продолжить обучение\n"
+        "/update — обновить ещё что-то"
+    )
+    await state.clear()
+
+@router.message(UpdateStates.updating_goals)
+async def on_save_goals(message: Message, state: FSMContext):
+    await update_intern(message.chat.id, goals=message.text.strip())
+    await message.answer(
+        "✅ Цели обучения обновлены!\n\n"
+        "/learn — продолжить обучение\n"
+        "/update — обновить ещё что-то"
+    )
+    await state.clear()
 
 @router.message(LearningStates.waiting_for_answer)
 async def on_answer(message: Message, state: FSMContext):
@@ -903,6 +1053,7 @@ async def main():
         BotCommand(command="learn", description="Получить новую тему"),
         BotCommand(command="progress", description="Мой прогресс"),
         BotCommand(command="profile", description="Мой профиль"),
+        BotCommand(command="update", description="Обновить профиль"),
         BotCommand(command="help", description="Справка")
     ])
 
