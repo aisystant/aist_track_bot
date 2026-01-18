@@ -35,6 +35,7 @@ import asyncpg
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
+MCP_URL = os.getenv("MCP_URL", "https://guides-mcp.aisystant.workers.dev/mcp")
 
 if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN не установлен!")
@@ -284,15 +285,40 @@ class ClaudeClient:
                 logger.error(f"Claude API exception: {e}")
                 return None
 
-    async def generate_content(self, topic: dict, intern: dict) -> str:
+    async def generate_content(self, topic: dict, intern: dict, mcp_client=None) -> str:
         duration = STUDY_DURATIONS.get(str(intern['study_duration']), {"words": 1500})
         words = duration.get('words', 1500)
+
+        # Получаем контекст из MCP (semantic search по теме)
+        mcp_context = ""
+        if mcp_client:
+            try:
+                search_query = f"{topic.get('title')} {topic.get('main_concept')}"
+                search_results = await mcp_client.semantic_search(search_query, lang="ru", limit=3)
+
+                if search_results:
+                    context_parts = []
+                    for item in search_results[:3]:
+                        if isinstance(item, dict):
+                            text = item.get('text', item.get('content', ''))
+                            if text:
+                                # Ограничиваем длину каждого фрагмента
+                                context_parts.append(text[:1500])
+                        elif isinstance(item, str):
+                            context_parts.append(item[:1500])
+
+                    if context_parts:
+                        mcp_context = "\n\n---\n\n".join(context_parts)
+                        logger.info(f"MCP: найдено {len(context_parts)} фрагментов контекста")
+            except Exception as e:
+                logger.error(f"MCP search error: {e}")
 
         system_prompt = f"""Ты — персональный наставник по системному мышлению и личному развитию.
 {get_personalization_prompt(intern)}
 
 Создай текст на {intern['study_duration']} минут чтения (~{words} слов). Без заголовков, только абзацы.
-Текст должен быть вовлекающим, с примерами из жизни читателя."""
+Текст должен быть вовлекающим, с примерами из жизни читателя.
+{"Используй предоставленный контекст из руководств Aisystant как основу для материала." if mcp_context else ""}"""
 
         # Формируем контекст из структуры знаний
         pain_point = topic.get('pain_point', '')
@@ -307,7 +333,10 @@ class ClaudeClient:
 {"Ключевой инсайт: " + key_insight if key_insight else ""}
 {"Источник: " + source if source else ""}
 
-Начни с признания боли читателя, затем раскрой тему и подведи к ключевому инсайту."""
+{f"КОНТЕКСТ ИЗ РУКОВОДСТВ AISYSTANT:{chr(10)}{mcp_context}" if mcp_context else ""}
+
+Начни с признания боли читателя, затем раскрой тему и подведи к ключевому инсайту.
+{"Опирайся на контекст из руководств, но адаптируй под профиль стажера." if mcp_context else ""}"""
 
         result = await self.generate(system_prompt, user_prompt)
         return result or "Не удалось сгенерировать контент. Попробуйте /learn ещё раз."
@@ -324,6 +353,121 @@ class ClaudeClient:
         return result or "Что ты понял из этой темы? Приведи пример из своей практики."
 
 claude = ClaudeClient()
+
+# ============= MCP CLIENT =============
+
+class MCPClient:
+    """Клиент для работы с MCP сервером руководств Aisystant"""
+
+    def __init__(self):
+        self.base_url = MCP_URL
+        self._request_id = 0
+
+    def _next_id(self) -> int:
+        self._request_id += 1
+        return self._request_id
+
+    async def _call(self, tool_name: str, arguments: dict) -> Optional[dict]:
+        """Вызов инструмента MCP через JSON-RPC"""
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": tool_name,
+                "arguments": arguments
+            },
+            "id": self._next_id()
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    self.base_url,
+                    headers={"Content-Type": "application/json"},
+                    json=payload,
+                    timeout=aiohttp.ClientTimeout(total=30)
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        if "result" in data:
+                            return data["result"]
+                        if "error" in data:
+                            logger.error(f"MCP error: {data['error']}")
+                            return None
+                    else:
+                        error = await resp.text()
+                        logger.error(f"MCP HTTP error {resp.status}: {error}")
+                        return None
+        except asyncio.TimeoutError:
+            logger.error("MCP request timeout")
+            return None
+        except Exception as e:
+            logger.error(f"MCP exception: {e}")
+            return None
+
+    async def get_guides_list(self, lang: str = "ru", category: str = None) -> List[dict]:
+        """Получить список всех руководств"""
+        args = {"lang": lang}
+        if category:
+            args["category"] = category
+
+        result = await self._call("get_guides_list", args)
+        if result and "content" in result:
+            # Парсим JSON из content
+            for item in result.get("content", []):
+                if item.get("type") == "text":
+                    try:
+                        return json.loads(item.get("text", "[]"))
+                    except json.JSONDecodeError:
+                        pass
+        return []
+
+    async def get_guide_sections(self, guide_slug: str, lang: str = "ru") -> List[dict]:
+        """Получить разделы конкретного руководства"""
+        result = await self._call("get_guide_sections", {
+            "guide_slug": guide_slug,
+            "lang": lang
+        })
+        if result and "content" in result:
+            for item in result.get("content", []):
+                if item.get("type") == "text":
+                    try:
+                        return json.loads(item.get("text", "[]"))
+                    except json.JSONDecodeError:
+                        pass
+        return []
+
+    async def get_section_content(self, guide_slug: str, section_slug: str, lang: str = "ru") -> str:
+        """Получить содержимое раздела"""
+        result = await self._call("get_section_content", {
+            "guide_slug": guide_slug,
+            "section_slug": section_slug,
+            "lang": lang
+        })
+        if result and "content" in result:
+            for item in result.get("content", []):
+                if item.get("type") == "text":
+                    return item.get("text", "")
+        return ""
+
+    async def semantic_search(self, query: str, lang: str = "ru", limit: int = 5) -> List[dict]:
+        """Семантический поиск по руководствам"""
+        result = await self._call("semantic_search", {
+            "query": query,
+            "lang": lang,
+            "limit": limit
+        })
+        if result and "content" in result:
+            for item in result.get("content", []):
+                if item.get("type") == "text":
+                    try:
+                        return json.loads(item.get("text", "[]"))
+                    except json.JSONDecodeError:
+                        # Если не JSON, возвращаем как текст
+                        return [{"text": item.get("text", "")}]
+        return []
+
+mcp = MCPClient()
 
 # ============= СТРУКТУРА ЗНАНИЙ =============
 
@@ -687,14 +831,15 @@ async def on_answer(message: Message, state: FSMContext):
 async def send_topic(chat_id: int, state: FSMContext, bot: Bot):
     intern = await get_intern(chat_id)
     topic = get_topic(intern['current_topic_index'])
-    
+
     if not topic:
         await bot.send_message(chat_id, "🎉 Все темы пройдены!")
         return
-    
+
     await bot.send_message(chat_id, "⏳ Генерирую персональный материал...")
-    
-    content = await claude.generate_content(topic, intern)
+
+    # Генерируем контент с контекстом из MCP
+    content = await claude.generate_content(topic, intern, mcp_client=mcp)
     question = await claude.generate_question(topic, intern)
     
     header = (
