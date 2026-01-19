@@ -1221,6 +1221,7 @@ async def cmd_profile(message: Message):
         f"{duration.get('emoji', '')} {duration.get('name', '')} на тему\n"
         f"{bloom['emoji']} Уровень: {bloom['short_name']} «{bloom['name']}»\n"
         f"⏰ Напоминание в {intern['schedule_time']}\n\n"
+        f"🆔 `{message.chat.id}`\n\n"
         f"/update — обновить профиль",
         parse_mode="Markdown"
     )
