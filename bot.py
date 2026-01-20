@@ -98,30 +98,33 @@ STUDY_DURATIONS = {
 }
 
 # Уровни сложности вопросов (по таксономии Блума)
+# Блум 1: Знание — вопросы "в чём разница"
+# Блум 2: Понимание — открытые вопросы
+# Блум 3: Применение — анализ, примеры из жизни/работы
 BLOOM_LEVELS = {
     1: {
         "emoji": "🔵",
-        "name": "Понимаю",
+        "name": "Знание",
         "short_name": "Сложность-1",
-        "desc": "Запоминание и понимание концепций",
-        "question_type": "Объясни своими словами, что такое {concept}? Приведи пример из своей области.",
-        "prompt": "Создай вопрос на ПОНИМАНИЕ темы. Попроси объяснить концепцию своими словами или привести пример."
+        "desc": "Различение и запоминание понятий",
+        "question_type": "В чём разница между {concept} и связанными понятиями?",
+        "prompt": "Создай вопрос на РАЗЛИЧЕНИЕ понятий. Попроси объяснить, в чём разница между концепциями, чем отличаются подходы."
     },
     2: {
         "emoji": "🟡",
-        "name": "Применяю",
+        "name": "Понимание",
         "short_name": "Сложность-2",
-        "desc": "Применение и анализ в практике",
-        "question_type": "Как бы ты применил {concept} в своей работе? Разбери конкретную ситуацию.",
-        "prompt": "Создай вопрос на ПРИМЕНЕНИЕ темы. Попроси применить концепцию к конкретной рабочей ситуации стажера или проанализировать кейс."
+        "desc": "Открытые вопросы на понимание",
+        "question_type": "Как вы понимаете {concept}? Почему это важно?",
+        "prompt": "Создай ОТКРЫТЫЙ вопрос на понимание. Попроси объяснить своими словами, раскрыть связи между понятиями, объяснить почему что-то важно."
     },
     3: {
         "emoji": "🔴",
-        "name": "Анализирую",
+        "name": "Применение",
         "short_name": "Сложность-3",
-        "desc": "Оценка и создание нового",
-        "question_type": "Предложи своё решение на основе {concept}. Оцени плюсы и минусы разных подходов.",
-        "prompt": "Создай вопрос на АНАЛИЗ/ОЦЕНКУ. Попроси предложить своё решение, оценить подходы или создать план действий на основе изученного."
+        "desc": "Анализ и примеры из практики",
+        "question_type": "Приведите пример {concept} из вашей жизни или работы. Проанализируйте ситуацию.",
+        "prompt": "Создай вопрос на ПРИМЕНЕНИЕ и АНАЛИЗ. Попроси привести конкретный пример из личной жизни или рабочей практики, проанализировать ситуацию, объяснить коллеге."
     }
 }
 
@@ -135,6 +138,75 @@ BLOOM_AUTO_UPGRADE_AFTER = 7  # после 7 тем уровень повыша�
 DAILY_TOPICS_LIMIT = 999  # ВРЕМЕННО: для тестирования
 MAX_TOPICS_PER_DAY = 999  # ВРЕМЕННО: для тестирования
 MARATHON_DAYS = 14  # длительность марафона
+
+# ============= ЗАГРУЗКА МЕТАДАННЫХ ТЕМ =============
+
+TOPICS_DIR = Path(__file__).parent / "topics"
+
+def load_topic_metadata(topic_id: str) -> Optional[dict]:
+    """Загружает метаданные темы из YAML файла
+
+    Args:
+        topic_id: ID темы (например, "1-1-three-states")
+
+    Returns:
+        Словарь с метаданными или None если файл не найден
+    """
+    if not TOPICS_DIR.exists():
+        return None
+
+    # Пробуем найти файл по ID
+    for yaml_file in TOPICS_DIR.glob("*.yaml"):
+        if yaml_file.name.startswith("_"):  # Пропускаем служебные файлы
+            continue
+        try:
+            with open(yaml_file, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+                if data and data.get('id') == topic_id:
+                    return data
+        except Exception as e:
+            logger.error(f"Ошибка загрузки метаданных {yaml_file}: {e}")
+
+    return None
+
+def get_bloom_questions(metadata: dict, bloom_level: int, study_duration: int) -> dict:
+    """Получает настройки вопросов для заданного уровня Блума и времени
+
+    Args:
+        metadata: метаданные темы
+        bloom_level: уровень Блума (1, 2 или 3)
+        study_duration: время на тему в минутах (5, 10, 15, 20, 25)
+
+    Returns:
+        Словарь с настройками вопросов или пустой словарь
+    """
+    time_levels = metadata.get('time_levels', {})
+
+    # Нормализуем время к ближайшему уровню (5, 15, 25)
+    if study_duration <= 5:
+        time_key = 5
+    elif study_duration <= 15:
+        time_key = 15
+    else:
+        time_key = 25
+
+    time_config = time_levels.get(time_key, {})
+    bloom_key = f"bloom_{bloom_level}"
+
+    return time_config.get(bloom_key, {})
+
+def get_search_keys(metadata: dict, mcp_type: str = "guides_mcp") -> List[str]:
+    """Получает ключи поиска для MCP из метаданных
+
+    Args:
+        metadata: метаданные темы
+        mcp_type: тип MCP ("guides_mcp" или "knowledge_mcp")
+
+    Returns:
+        Список поисковых запросов
+    """
+    search_keys = metadata.get('search_keys', {})
+    return search_keys.get(mcp_type, [])
 
 # ============= СОСТОЯНИЯ FSM =============
 
@@ -428,25 +500,43 @@ class ClaudeClient:
         duration = STUDY_DURATIONS.get(str(intern['study_duration']), {"words": 1500})
         words = duration.get('words', 1500)
 
-        search_query = f"{topic.get('title')} {topic.get('main_concept')}"
+        # Пробуем загрузить метаданные темы для точных поисковых запросов
+        topic_id = topic.get('id', '')
+        metadata = load_topic_metadata(topic_id) if topic_id else None
 
-        # Получаем контекст из MCP руководств
+        # Используем ключи поиска из метаданных или формируем общий запрос
+        if metadata:
+            guides_search_keys = get_search_keys(metadata, "guides_mcp")
+            knowledge_search_keys = get_search_keys(metadata, "knowledge_mcp")
+            logger.info(f"Загружены метаданные темы {topic_id}: {len(guides_search_keys)} guides, {len(knowledge_search_keys)} knowledge")
+        else:
+            # Fallback на общий запрос
+            default_query = f"{topic.get('title')} {topic.get('main_concept')}"
+            guides_search_keys = [default_query]
+            knowledge_search_keys = [default_query]
+
+        # Получаем контекст из MCP руководств (используем все ключи поиска)
         guides_context = ""
         if mcp_client:
             try:
-                search_results = await mcp_client.semantic_search(search_query, lang="ru", limit=3)
-                if search_results:
-                    context_parts = []
-                    for item in search_results[:3]:
-                        if isinstance(item, dict):
-                            text = item.get('text', item.get('content', ''))
-                            if text:
+                context_parts = []
+                seen_texts = set()  # Для дедупликации
+                for search_query in guides_search_keys[:3]:  # Максимум 3 запроса
+                    search_results = await mcp_client.semantic_search(search_query, lang="ru", limit=2)
+                    if search_results:
+                        for item in search_results:
+                            if isinstance(item, dict):
+                                text = item.get('text', item.get('content', ''))
+                            elif isinstance(item, str):
+                                text = item
+                            else:
+                                continue
+                            if text and text[:100] not in seen_texts:
+                                seen_texts.add(text[:100])
                                 context_parts.append(text[:1500])
-                        elif isinstance(item, str):
-                            context_parts.append(item[:1500])
-                    if context_parts:
-                        guides_context = "\n\n".join(context_parts)
-                        logger.info(f"{mcp_client.name}: найдено {len(context_parts)} фрагментов контекста")
+                if context_parts:
+                    guides_context = "\n\n".join(context_parts[:5])  # Максимум 5 фрагментов
+                    logger.info(f"{mcp_client.name}: найдено {len(context_parts)} фрагментов контекста")
             except Exception as e:
                 logger.error(f"{mcp_client.name} search error: {e}")
 
@@ -454,25 +544,30 @@ class ClaudeClient:
         knowledge_context = ""
         if knowledge_client:
             try:
-                # Knowledge MCP использует инструмент 'search' (не semantic_search)
-                search_results = await knowledge_client.search(search_query, limit=3)
-                if search_results:
-                    context_parts = []
-                    for item in search_results[:3]:
-                        if isinstance(item, dict):
-                            text = item.get('text', item.get('content', ''))
-                            date_info = item.get('created_at', item.get('date', ''))
-                            if text:
-                                # Добавляем информацию о дате, если есть
+                context_parts = []
+                seen_texts = set()
+                for search_query in knowledge_search_keys[:3]:  # Максимум 3 запроса
+                    # Сортируем по дате создания (сначала новые)
+                    search_results = await knowledge_client.semantic_search(
+                        search_query, lang="ru", limit=2, sort_by="created_at:desc"
+                    )
+                    if search_results:
+                        for item in search_results:
+                            if isinstance(item, dict):
+                                text = item.get('text', item.get('content', ''))
+                                date_info = item.get('created_at', item.get('date', ''))
                                 if date_info:
-                                    context_parts.append(f"[{date_info}] {text[:1500]}")
-                                else:
-                                    context_parts.append(text[:1500])
-                        elif isinstance(item, str):
-                            context_parts.append(item[:1500])
-                    if context_parts:
-                        knowledge_context = "\n\n".join(context_parts)
-                        logger.info(f"{knowledge_client.name}: найдено {len(context_parts)} фрагментов")
+                                    text = f"[{date_info}] {text}"
+                            elif isinstance(item, str):
+                                text = item
+                            else:
+                                continue
+                            if text and text[:100] not in seen_texts:
+                                seen_texts.add(text[:100])
+                                context_parts.append(text[:1500])
+                if context_parts:
+                    knowledge_context = "\n\n".join(context_parts[:5])  # Максимум 5 фрагментов
+                    logger.info(f"{knowledge_client.name}: найдено {len(context_parts)} фрагментов (свежие посты)")
             except Exception as e:
                 logger.error(f"{knowledge_client.name} search error: {e}")
 
@@ -554,10 +649,43 @@ class ClaudeClient:
         return result or ""
 
     async def generate_question(self, topic: dict, intern: dict, bloom_level: int = None) -> str:
-        """Генерирует вопрос по теме с учётом уровня Блума"""
+        """Генерирует вопрос по теме с учётом уровня Блума и метаданных темы
+
+        Использует шаблоны вопросов из метаданных темы (topics/*.yaml) если доступны.
+        Учитывает:
+        - Блум 1 (Знание): вопросы "в чём разница"
+        - Блум 2 (Понимание): открытые вопросы
+        - Блум 3 (Применение): анализ, примеры из жизни/работы
+        """
         level = bloom_level or intern.get('bloom_level', 1)
         bloom = BLOOM_LEVELS.get(level, BLOOM_LEVELS[1])
         occupation = intern.get('occupation', '') or 'работа'
+        study_duration = intern.get('study_duration', 15)
+
+        # Пробуем загрузить метаданные темы
+        topic_id = topic.get('id', '')
+        metadata = load_topic_metadata(topic_id) if topic_id else None
+
+        # Получаем настройки вопросов из метаданных
+        question_config = {}
+        question_templates = []
+        if metadata:
+            question_config = get_bloom_questions(metadata, level, study_duration)
+            question_templates = question_config.get('question_templates', [])
+            logger.info(f"Загружены шаблоны вопросов для {topic_id}: bloom_{level}, {study_duration}мин, {len(question_templates)} шаблонов")
+
+        # Определяем тип вопроса по уровню Блума
+        question_type_hints = {
+            1: "Задай вопрос на РАЗЛИЧЕНИЕ понятий (\"В чём разница между...\", \"Чем отличается...\").",
+            2: "Задай ОТКРЫТЫЙ вопрос на понимание (\"Почему...\", \"Как вы понимаете...\", \"Объясните связь...\").",
+            3: "Задай вопрос на ПРИМЕНЕНИЕ и АНАЛИЗ (\"Приведите пример из жизни\", \"Проанализируйте ситуацию\", \"Как бы вы объяснили коллеге...\")."
+        }
+        question_type_hint = question_type_hints.get(level, question_type_hints[1])
+
+        # Формируем подсказки по шаблонам
+        templates_hint = ""
+        if question_templates:
+            templates_hint = f"\nПРИМЕРЫ ВОПРОСОВ (используй как образец стиля):\n- " + "\n- ".join(question_templates[:3])
 
         system_prompt = f"""Ты генерируешь ТОЛЬКО ОДИН КОРОТКИЙ ВОПРОС. Ничего больше.
 
@@ -569,7 +697,9 @@ class ClaudeClient:
 
 Выдай ТОЛЬКО сам вопрос — 1-3 предложения максимум.
 Вопрос должен быть связан с профессией: "{occupation}".
-Уровень сложности: {bloom['name']} — {bloom['desc']}"""
+Уровень сложности: {bloom['name']} — {bloom['desc']}
+{question_type_hint}
+{templates_hint}"""
 
         user_prompt = f"""Тема: {topic.get('title')}
 Понятие: {topic.get('main_concept')}
