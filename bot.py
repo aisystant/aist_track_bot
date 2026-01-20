@@ -1037,7 +1037,7 @@ async def cmd_start(message: Message, state: FSMContext):
         return
 
     await message.answer(
-        "👋 Здравствуйте! Я помощник для персонального обучения.\n\n"
+        "👋 Здравствуйте! Я персональный помощник для системного развития.\n\n"
         "Задам несколько вопросов, чтобы адаптировать материал под вас (~2 мин).\n\n"
         "Как вас зовут?"
     )
@@ -2065,7 +2065,7 @@ async def send_theory_topic(chat_id: int, topic: dict, intern: dict, state: FSMC
         chat_id,
         f"💭 *Вопрос для размышления* ({bloom['short_name']})\n\n"
         f"{question}\n\n"
-        f"_Напишите ответ в сообщении. Он не проверяется автоматически — "
+        f"_Напишите ответ в сообщении. Он не проверяется — "
         f"после получения любого ответа тема считается пройденной._",
         parse_mode="Markdown",
         reply_markup=kb_skip_topic()
@@ -2149,11 +2149,22 @@ async def send_scheduled_topic(chat_id: int, bot: Bot):
     if not topic:
         # Проверяем, все ли темы пройдены
         total = get_total_topics()
-        completed = len(intern['completed_topics'])
-        if completed >= total:
+        completed_count = len(intern['completed_topics'])
+        if completed_count >= total:
+            # Марафон пройден — показываем статистику
+            weeks = get_sections_progress(intern['completed_topics'])
+            weeks_text = ""
+            for i, week in enumerate(weeks):
+                pct = int((week['completed'] / week['total']) * 100) if week['total'] > 0 else 0
+                bar = '█' * (pct // 10) + '░' * (10 - pct // 10)
+                weeks_text += f"{'1️⃣' if i == 0 else '2️⃣'} Неделя {i + 1}: {bar} {week['completed']}/{week['total']} ✅\n"
+
             await bot.send_message(
                 chat_id,
-                "🎉 *Марафон завершён!*\n\n"
+                "🎉 *Поздравляем! Марафон пройден!*\n\n"
+                f"Вы прошли все *{MARATHON_DAYS} дней* и *{total} тем*.\n\n"
+                f"📊 *Ваша статистика:*\n"
+                f"{weeks_text}\n"
                 "Заходите в [Мастерскую](https://system-school.ru/) для продвинутых программ.",
                 parse_mode="Markdown"
             )
