@@ -91,9 +91,7 @@ EXPERIENCE_LEVELS = {
 
 STUDY_DURATIONS = {
     "5": {"emoji": "⚡", "name": "5 минут", "words": 500, "desc": "Быстрый обзор"},
-    "10": {"emoji": "🕐", "name": "10 минут", "words": 1000, "desc": "Краткое изучение"},
     "15": {"emoji": "🕑", "name": "15 минут", "words": 1500, "desc": "Стандартное изучение"},
-    "20": {"emoji": "🕒", "name": "20 минут", "words": 2000, "desc": "Углублённое изучение"},
     "25": {"emoji": "🕓", "name": "25 минут", "words": 2500, "desc": "Полное погружение"}
 }
 
@@ -132,11 +130,8 @@ BLOOM_LEVELS = {
 BLOOM_AUTO_UPGRADE_AFTER = 7  # после 7 тем уровень повышается
 
 # Лимит тем в день (для развития систематичности)
-# PRODUCTION VALUES (восстановить после тестирования):
-# DAILY_TOPICS_LIMIT = 2
-# MAX_TOPICS_PER_DAY = 4
-DAILY_TOPICS_LIMIT = 999  # ВРЕМЕННО: для тестирования
-MAX_TOPICS_PER_DAY = 999  # ВРЕМЕННО: для тестирования
+DAILY_TOPICS_LIMIT = 2
+MAX_TOPICS_PER_DAY = 4  # макс тем в день (нагнать 1 день)
 MARATHON_DAYS = 14  # длительность марафона
 
 # ============= ЗАГРУЗКА МЕТАДАННЫХ ТЕМ =============
@@ -291,6 +286,24 @@ async def init_db():
         await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS topic_order TEXT DEFAULT \'default\'')
         # Марафон: дата старта
         await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS marathon_start_date DATE DEFAULT NULL')
+
+        # Режимы работы (Марафон/Лента)
+        await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT \'marathon\'')
+        await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS marathon_status TEXT DEFAULT \'not_started\'')
+        await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS marathon_paused_at DATE DEFAULT NULL')
+        await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS feed_status TEXT DEFAULT \'not_started\'')
+        await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS feed_started_at DATE DEFAULT NULL')
+
+        # Систематичность
+        await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS active_days_total INTEGER DEFAULT 0')
+        await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS active_days_streak INTEGER DEFAULT 0')
+        await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS longest_streak INTEGER DEFAULT 0')
+        await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS last_active_date DATE DEFAULT NULL')
+
+        # Сложность (новое название для bloom)
+        await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS complexity_level INTEGER DEFAULT 1')
+        await conn.execute('ALTER TABLE interns ADD COLUMN IF NOT EXISTS topics_at_current_complexity INTEGER DEFAULT 0')
+
         # Таблица для напоминаний
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS reminders (
@@ -422,7 +435,68 @@ def get_topics_today(intern: dict) -> int:
     # Иначе — новый день, счётчик обнуляется
     return 0
 
-def get_personalization_prompt(intern: dict) -> str:
+# Шаблоны форматов примеров для ротации
+EXAMPLE_TEMPLATES = [
+    ("аналогия", "Используй аналогию — перенеси структуру или принцип из одной области в другую"),
+    ("мини-кейс", "Используй мини-кейс — опиши ситуацию → выбор → последствия"),
+    ("контрпример", "Используй контрпример — покажи как НЕ работает, чтобы подчеркнуть как работает правильно"),
+    ("сравнение", "Используй сравнение двух подходов — правильный vs неправильный"),
+    ("ошибка-мастерство", "Покажи типичную ошибку новичка и приём мастера"),
+    ("наблюдение", "Предложи наблюдательный эксперимент — что можно заметить в повседневной жизни"),
+]
+
+# Источники примеров для ротации
+EXAMPLE_SOURCES = ["работа", "близкая профессиональная сфера", "интерес/хобби", "далёкая сфера для контраста"]
+
+
+def get_example_rules(intern: dict, marathon_day: int) -> str:
+    """Генерирует правила для примеров с ротацией по дню марафона"""
+    interests = intern.get('interests', [])
+    occupation = intern.get('occupation', '') or 'работа'
+
+    # Выбираем интерес по дню (циклически)
+    if interests:
+        interest_idx = (marathon_day - 1) % len(interests)
+        today_interest = interests[interest_idx]
+        other_interests = [i for idx, i in enumerate(interests) if idx != interest_idx]
+    else:
+        today_interest = None
+        other_interests = []
+
+    # Выбираем шаблон формата по дню
+    template_idx = (marathon_day - 1) % len(EXAMPLE_TEMPLATES)
+    template_name, template_instruction = EXAMPLE_TEMPLATES[template_idx]
+
+    # Ротация порядка источников по дню
+    shift = (marathon_day - 1) % len(EXAMPLE_SOURCES)
+    rotated_sources = EXAMPLE_SOURCES[shift:] + EXAMPLE_SOURCES[:shift]
+
+    # Формируем правила
+    sources_text = "\n".join([f"  {i+1}. {src}" for i, src in enumerate(rotated_sources)])
+
+    interest_text = f'"{today_interest}"' if today_interest else "не указан"
+    other_interests_text = f" (другие интересы для разнообразия: {', '.join(other_interests)})" if other_interests else ""
+
+    return f"""
+ПРАВИЛА ДЛЯ ПРИМЕРОВ (День {marathon_day}):
+
+Формат примеров сегодня: **{template_name}**
+{template_instruction}
+
+Порядок источников для примеров (от первого к последнему):
+{sources_text}
+
+Детали источников:
+- Работа/профессия: "{occupation}"
+- Интерес дня: {interest_text}{other_interests_text}
+- Близкая сфера: смежная с работой "{occupation}" область
+- Далёкая сфера: что-то неожиданное для контраста (спорт, искусство, природа, история)
+
+ВАЖНО: Используй интерес дня ({interest_text}), а НЕ всегда первый из списка!
+"""
+
+
+def get_personalization_prompt(intern: dict, marathon_day: int = 1) -> str:
     """Генерирует промпт для персонализации на основе упрощённого профиля"""
     duration = STUDY_DURATIONS.get(str(intern['study_duration']), {"words": 1500})
 
@@ -430,6 +504,8 @@ def get_personalization_prompt(intern: dict) -> str:
     occupation = intern.get('occupation', '') or 'не указано'
     motivation = intern.get('motivation', '') or 'не указано'
     goals = intern.get('goals', '') or 'не указаны'
+
+    example_rules = get_example_rules(intern, marathon_day)
 
     return f"""
 ПРОФИЛЬ СТАЖЕРА:
@@ -445,13 +521,7 @@ def get_personalization_prompt(intern: dict) -> str:
 2. Добавляй мотивационный блок, опираясь на ценности стажера: "{motivation}"
 3. Объём текста должен быть рассчитан на {intern['study_duration']} минут чтения (~{duration.get('words', 1500)} слов)
 4. Пиши простым языком, избегай академического стиля
-
-ПРАВИЛА ДЛЯ ПРИМЕРОВ:
-- Первый пример — из рабочей сферы стажера ("{occupation}")
-- Второй пример — из близкой профессиональной сферы
-- Третий пример (если нужен) — из интересов/хобби ({interests}), НЕ БОЛЕЕ ОДНОГО примера из интересов
-- Четвёртый пример (если нужен) — из абсолютно далёкой сферы для контраста
-"""
+{example_rules}"""
 
 # ============= CLAUDE API =============
 
@@ -488,12 +558,13 @@ class ClaudeClient:
                 logger.error(f"Claude API exception: {e}")
                 return None
 
-    async def generate_content(self, topic: dict, intern: dict, mcp_client=None, knowledge_client=None) -> str:
+    async def generate_content(self, topic: dict, intern: dict, marathon_day: int = 1, mcp_client=None, knowledge_client=None) -> str:
         """Генерирует контент для теоретической темы марафона
 
         Args:
             topic: тема для генерации
             intern: профиль стажера
+            marathon_day: день марафона для ротации примеров
             mcp_client: клиент MCP для руководств (guides)
             knowledge_client: клиент MCP для базы знаний (knowledge) - приоритет свежим постам
         """
@@ -592,7 +663,7 @@ class ClaudeClient:
             context_instruction = "Используй предоставленный контекст из материалов Aisystant как основу."
 
         system_prompt = f"""Ты — персональный наставник по системному мышлению и личному развитию.
-{get_personalization_prompt(intern)}
+{get_personalization_prompt(intern, marathon_day)}
 
 Создай текст на {intern['study_duration']} минут чтения (~{words} слов). Без заголовков, только абзацы.
 Текст должен быть вовлекающим, с примерами из жизни читателя.
@@ -626,10 +697,10 @@ class ClaudeClient:
         result = await self.generate(system_prompt, user_prompt)
         return result or "Не удалось сгенерировать контент. Попробуйте /learn ещё раз."
 
-    async def generate_practice_intro(self, topic: dict, intern: dict) -> str:
+    async def generate_practice_intro(self, topic: dict, intern: dict, marathon_day: int = 1) -> str:
         """Генерирует вводный текст для практического задания"""
         system_prompt = f"""Ты — персональный наставник по системному мышлению.
-{get_personalization_prompt(intern)}
+{get_personalization_prompt(intern, marathon_day)}
 
 Напиши краткое (3-5 предложений) введение к практическому заданию.
 Объясни, зачем это задание и как оно связано с темой дня."""
@@ -648,19 +719,33 @@ class ClaudeClient:
         result = await self.generate(system_prompt, user_prompt)
         return result or ""
 
-    async def generate_question(self, topic: dict, intern: dict, bloom_level: int = None) -> str:
-        """Генерирует вопрос по теме с учётом уровня Блума и метаданных темы
+    async def generate_question(self, topic: dict, intern: dict, marathon_day: int = 1, bloom_level: int = None) -> str:
+        """Генерирует вопрос по теме с учётом уровня Блума, ротации контекстов и метаданных темы
 
         Использует шаблоны вопросов из метаданных темы (topics/*.yaml) если доступны.
         Учитывает:
         - Блум 1 (Знание): вопросы "в чём разница"
         - Блум 2 (Понимание): открытые вопросы
         - Блум 3 (Применение): анализ, примеры из жизни/работы
+        - Ротация контекстов по дню марафона
         """
         level = bloom_level or intern.get('bloom_level', 1)
         bloom = BLOOM_LEVELS.get(level, BLOOM_LEVELS[1])
         occupation = intern.get('occupation', '') or 'работа'
         study_duration = intern.get('study_duration', 15)
+        interests = intern.get('interests', [])
+
+        # Выбираем контекст для вопроса по дню (ротация)
+        question_contexts = [
+            f'профессии ("{occupation}")',
+            f'интереса/хобби' + (f' ("{interests[(marathon_day - 1) % len(interests)]}")' if interests else ''),
+            'повседневной жизни',
+            'отношений с людьми',
+            'личного развития',
+            'принятия решений',
+        ]
+        context_idx = (marathon_day - 1) % len(question_contexts)
+        question_context = question_contexts[context_idx]
 
         # Пробуем загрузить метаданные темы
         topic_id = topic.get('id', '')
@@ -696,13 +781,15 @@ class ClaudeClient:
 - Писать что-либо после вопроса
 
 Выдай ТОЛЬКО сам вопрос — 1-3 предложения максимум.
-Вопрос должен быть связан с профессией: "{occupation}".
+
+КОНТЕКСТ ВОПРОСА (День {marathon_day}): {question_context}
 Уровень сложности: {bloom['name']} — {bloom['desc']}
 {question_type_hint}
 {templates_hint}"""
 
         user_prompt = f"""Тема: {topic.get('title')}
 Понятие: {topic.get('main_concept')}
+Контекст: {question_context}
 
 Выдай ТОЛЬКО вопрос (1-3 предложения), без введения и пояснений."""
 
@@ -1109,8 +1196,8 @@ def kb_update_profile() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="🎯 Что хочу изменить", callback_data="upd_goals")],
         [InlineKeyboardButton(text="⏱ Время на тему", callback_data="upd_duration"),
          InlineKeyboardButton(text="⏰ Расписание", callback_data="upd_schedule")],
-        [InlineKeyboardButton(text="🎚 Уровень сложности", callback_data="upd_bloom")],
-        [InlineKeyboardButton(text="🗓 Дата старта", callback_data="upd_marathon_start")],
+        [InlineKeyboardButton(text="🎚 Сложность", callback_data="upd_bloom")],
+        [InlineKeyboardButton(text="🎯 Выбор режима", callback_data="upd_mode")],
         [InlineKeyboardButton(text="❌ Отмена", callback_data="upd_cancel")]
     ])
 
@@ -1472,13 +1559,12 @@ async def cmd_profile(message: Message):
 @router.message(Command("help"))
 async def cmd_help(message: Message):
     await message.answer(
-        "📖 *Доступные команды:*\n\n"
-        "/start — начать или перезапустить онбординг\n"
+        "📖 *Основные команды:*\n\n"
         "/learn — получить новую тему для изучения\n"
+        "/mode — выбор режима (Марафон/Лента)\n"
         "/progress — посмотреть свой прогресс\n"
         "/profile — посмотреть свой профиль\n"
-        "/update — обновить профиль\n"
-        "/help — показать эту справку\n\n"
+        "/update — обновить профиль\n\n"
         "*Как работает обучение:*\n"
         "1. Я отправляю персонализированный материал\n"
         "2. Вы изучаете его (5-25 мин)\n"
@@ -1646,6 +1732,25 @@ async def on_save_bloom(callback: CallbackQuery, state: FSMContext):
         parse_mode="Markdown"
     )
     await state.clear()
+
+@router.callback_query(UpdateStates.choosing_field, F.data == "upd_mode")
+async def on_upd_mode(callback: CallbackQuery, state: FSMContext):
+    """Переход к выбору режима (Марафон/Лента)"""
+    await state.clear()
+    await callback.answer()
+
+    # Импортируем функцию выбора режима
+    try:
+        from engines.mode_selector import cmd_mode
+        # Создаём фейковое сообщение для вызова команды
+        await cmd_mode(callback.message)
+    except ImportError:
+        await callback.message.edit_text(
+            "🎯 *Выбор режима*\n\n"
+            "Используйте команду /mode для выбора режима работы.",
+            parse_mode="Markdown"
+        )
+
 
 @router.callback_query(UpdateStates.choosing_field, F.data == "upd_marathon_start")
 async def on_upd_marathon_start(callback: CallbackQuery, state: FSMContext):
@@ -1897,8 +2002,9 @@ async def on_bonus_yes(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text("⏳ Генерирую вопрос посложнее...")
 
     # Генерируем вопрос следующего уровня
+    marathon_day = get_marathon_day(intern)
     next_level = min(intern['bloom_level'] + 1, 3)
-    question = await claude.generate_question(topic, intern, bloom_level=next_level)
+    question = await claude.generate_question(topic, intern, marathon_day=marathon_day, bloom_level=next_level)
 
     bloom = BLOOM_LEVELS.get(next_level, BLOOM_LEVELS[1])
 
@@ -2179,8 +2285,8 @@ async def send_theory_topic(chat_id: int, topic: dict, intern: dict, state: FSMC
 
     await bot.send_message(chat_id, "⏳ Генерирую персональный материал...")
 
-    content = await claude.generate_content(topic, intern, mcp_client=mcp_guides, knowledge_client=mcp_knowledge)
-    question = await claude.generate_question(topic, intern)
+    content = await claude.generate_content(topic, intern, marathon_day=marathon_day, mcp_client=mcp_guides, knowledge_client=mcp_knowledge)
+    question = await claude.generate_question(topic, intern, marathon_day=marathon_day)
 
     header = (
         f"📚 *День {marathon_day} — Теория*\n"
@@ -2215,7 +2321,7 @@ async def send_practice_topic(chat_id: int, topic: dict, intern: dict, state: FS
     marathon_day = get_marathon_day(intern)
 
     # Генерируем краткое введение
-    intro = await claude.generate_practice_intro(topic, intern)
+    intro = await claude.generate_practice_intro(topic, intern, marathon_day=marathon_day)
 
     task = topic.get('task', '')
     work_product = topic.get('work_product', '')
@@ -2451,7 +2557,16 @@ async def scheduled_check():
 
 # ============= FALLBACK HANDLERS =============
 
-@router.callback_query()
+# Фильтр для исключения callback'ов, обрабатываемых другими роутерами
+def is_main_router_callback(callback: CallbackQuery) -> bool:
+    """Проверяет, что callback НЕ принадлежит engines/ роутерам"""
+    if not callback.data:
+        return True
+    # Исключаем callback'и, которые обрабатываются mode_router и feed_router
+    excluded_prefixes = ('mode_', 'feed_')
+    return not callback.data.startswith(excluded_prefixes)
+
+@router.callback_query(is_main_router_callback)
 async def on_unknown_callback(callback: CallbackQuery, state: FSMContext):
     """Обработка неизвестных callback-запросов (истёкшие кнопки и т.д.)"""
     logger.warning(f"Unhandled callback: {callback.data} from user {callback.from_user.id}")
@@ -2498,18 +2613,30 @@ async def main():
 
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher(storage=MemoryStorage())
+
+    # Подключаем роутеры режимов ПЕРЕД основным роутером
+    # (чтобы catch-all handler в router не перехватывал их callback'и)
+    try:
+        from engines.integration import setup_routers
+        setup_routers(dp)
+    except ImportError as e:
+        logger.warning(f"⚠️ Не удалось загрузить engines: {e}. Режимы Лента и выбор режима недоступны.")
+
+    # Основной роутер подключаем последним
     dp.include_router(router)
 
     # Сохраняем dispatcher для доступа к FSM storage из планировщика
     _dispatcher = dp
 
     # Установка команд бота (Menu-кнопка)
+    # /learn вверху - самая частая команда
     await bot.set_my_commands([
-        BotCommand(command="start", description="Начать обучение"),
         BotCommand(command="learn", description="Получить новую тему"),
         BotCommand(command="progress", description="Мой прогресс"),
         BotCommand(command="profile", description="Мой профиль"),
         BotCommand(command="update", description="Обновить профиль"),
+        BotCommand(command="mode", description="Выбор режима (Марафон/Лента)"),
+        BotCommand(command="start", description="Перезапустить онбординг"),
         BotCommand(command="help", description="Справка")
     ])
 
