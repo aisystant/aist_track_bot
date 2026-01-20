@@ -79,86 +79,103 @@ async def cmd_mode(message: Message):
 @mode_router.callback_query(F.data == "mode_marathon")
 async def select_marathon(callback: CallbackQuery):
     """Выбор режима Марафон"""
-    chat_id = callback.message.chat.id
-    intern = await get_intern(chat_id)
+    try:
+        chat_id = callback.message.chat.id
+        intern = await get_intern(chat_id)
 
-    marathon_status = intern.get('marathon_status', MarathonStatus.NOT_STARTED)
+        marathon_status = intern.get('marathon_status', MarathonStatus.NOT_STARTED)
+        has_progress = len(intern.get('completed_topics', [])) > 0 or intern.get('current_topic_index', 0) > 0
 
-    # Если марафон был на паузе - возобновляем
-    if marathon_status == MarathonStatus.PAUSED:
-        await update_intern(chat_id,
-            mode=Mode.MARATHON,
-            marathon_status=MarathonStatus.ACTIVE,
-        )
-        await callback.message.edit_text(
-            "✅ *Режим Марафон возобновлён!*\n\n"
-            "Используйте /learn для продолжения обучения.",
-            parse_mode="Markdown"
-        )
-    elif marathon_status == MarathonStatus.COMPLETED:
-        await callback.message.edit_text(
-            "🎉 *Марафон завершён!*\n\n"
-            "Вы уже прошли 14-дневный курс.\n"
-            "Рекомендуем перейти в режим Лента: /feed",
-            parse_mode="Markdown"
-        )
-    elif marathon_status == MarathonStatus.NOT_STARTED:
-        await update_intern(chat_id,
-            mode=Mode.MARATHON,
-            marathon_status=MarathonStatus.ACTIVE,
-        )
-        await callback.message.edit_text(
-            "✅ *Режим Марафон активирован!*\n\n"
-            "Используйте /learn для начала обучения.",
-            parse_mode="Markdown"
-        )
-    else:
-        # Уже активен
-        await update_intern(chat_id, mode=Mode.MARATHON)
-        await callback.message.edit_text(
-            "✅ *Режим Марафон*\n\n"
-            "Используйте /learn для продолжения обучения.",
-            parse_mode="Markdown"
-        )
+        # Если марафон был на паузе - возобновляем
+        if marathon_status == MarathonStatus.PAUSED:
+            await update_intern(chat_id,
+                mode=Mode.MARATHON,
+                marathon_status=MarathonStatus.ACTIVE,
+            )
+            await callback.message.edit_text(
+                "✅ *Режим Марафон возобновлён!*\n\n"
+                "Используйте /learn для продолжения обучения.",
+                parse_mode="Markdown"
+            )
+        elif marathon_status == MarathonStatus.COMPLETED:
+            await callback.message.edit_text(
+                "🎉 *Марафон завершён!*\n\n"
+                "Вы уже прошли 14-дневный курс.\n"
+                "Рекомендуем перейти в режим Лента: /feed",
+                parse_mode="Markdown"
+            )
+        elif marathon_status == MarathonStatus.NOT_STARTED and not has_progress:
+            # Реально новый пользователь
+            await update_intern(chat_id,
+                mode=Mode.MARATHON,
+                marathon_status=MarathonStatus.ACTIVE,
+            )
+            await callback.message.edit_text(
+                "✅ *Режим Марафон активирован!*\n\n"
+                "Используйте /learn для начала обучения.",
+                parse_mode="Markdown"
+            )
+        else:
+            # Активен или legacy пользователь с прогрессом
+            await update_intern(chat_id,
+                mode=Mode.MARATHON,
+                marathon_status=MarathonStatus.ACTIVE,
+            )
+            await callback.message.edit_text(
+                "✅ *Режим Марафон*\n\n"
+                "Используйте /learn для продолжения обучения.",
+                parse_mode="Markdown"
+            )
 
-    await callback.answer()
+        await callback.answer()
+    except Exception as e:
+        logger.error(f"Ошибка в select_marathon: {e}")
+        await callback.answer("Произошла ошибка. Попробуйте ещё раз.", show_alert=True)
 
 
 @mode_router.callback_query(F.data == "mode_feed")
 async def select_feed(callback: CallbackQuery):
     """Выбор режима Лента"""
-    chat_id = callback.message.chat.id
-    intern = await get_intern(chat_id)
+    try:
+        chat_id = callback.message.chat.id
+        intern = await get_intern(chat_id)
 
-    current_mode = intern.get('mode', Mode.MARATHON)
-    marathon_status = intern.get('marathon_status', MarathonStatus.NOT_STARTED)
+        current_mode = intern.get('mode', Mode.MARATHON)
+        marathon_status = intern.get('marathon_status', MarathonStatus.NOT_STARTED)
 
-    # Если был активный марафон - ставим на паузу
-    if current_mode == Mode.MARATHON and marathon_status == MarathonStatus.ACTIVE:
-        await update_intern(chat_id,
-            mode=Mode.FEED,
-            marathon_status=MarathonStatus.PAUSED,
-            feed_status=FeedStatus.ACTIVE,
-        )
-        await callback.message.edit_text(
-            "✅ *Режим Лента активирован!*\n\n"
-            "⏸️ Марафон поставлен на паузу. "
-            "Вы сможете вернуться к нему через /mode.\n\n"
-            "Используйте /feed для получения тем на неделю.",
-            parse_mode="Markdown"
-        )
-    else:
-        await update_intern(chat_id,
-            mode=Mode.FEED,
-            feed_status=FeedStatus.ACTIVE,
-        )
-        await callback.message.edit_text(
-            "✅ *Режим Лента активирован!*\n\n"
-            "Используйте /feed для получения тем на неделю.",
-            parse_mode="Markdown"
-        )
+        # Для legacy: проверяем реальный прогресс марафона
+        has_marathon_progress = len(intern.get('completed_topics', [])) > 0 or intern.get('current_topic_index', 0) > 0
 
-    await callback.answer()
+        # Если был активный марафон - ставим на паузу
+        if (marathon_status == MarathonStatus.ACTIVE or
+            (marathon_status == MarathonStatus.NOT_STARTED and has_marathon_progress)):
+            await update_intern(chat_id,
+                mode=Mode.FEED,
+                marathon_status=MarathonStatus.PAUSED,
+                feed_status=FeedStatus.ACTIVE,
+            )
+            await callback.message.edit_text(
+                "✅ *Режим Лента активирован!*\n\n"
+                "⏸️ Марафон поставлен на паузу. "
+                "Вы сможете вернуться к нему через /mode.\n\n"
+                "Используйте /feed для получения тем на неделю.",
+                parse_mode="Markdown"
+            )
+        else:
+            await update_intern(chat_id,
+                mode=Mode.FEED,
+                feed_status=FeedStatus.ACTIVE,
+            )
+            await callback.message.edit_text(
+                "✅ *Режим Лента активирован!*\n\n"
+                "Используйте /feed для получения тем на неделю.",
+                parse_mode="Markdown"
+            )
+
+        await callback.answer()
+    except Exception as e:
+        logger.error(f"Ошибка в select_feed: {e}")
+        await callback.answer("Произошла ошибка. Попробуйте ещё раз.", show_alert=True)
 
 
 def get_mode_name(mode: str) -> str:
