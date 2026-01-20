@@ -6,31 +6,32 @@ from datetime import date, timedelta
 from typing import List, Optional
 
 from config import get_logger
+from db.connection import get_pool
 
 logger = get_logger(__name__)
 
 
-async def record_active_day(pool, chat_id: int, activity_type: str, 
+async def record_active_day(chat_id: int, activity_type: str,
                            mode: str = 'marathon', reference_id: int = None):
     """
     Записать активный день.
-    
+
     Вызывается при любом текстовом ответе:
     - theory_answer, work_product, bonus_answer (марафон)
     - feed_fixation (лента)
     - question_asked (вопросы)
-    
+
     Args:
-        pool: пул соединений
         chat_id: ID пользователя
         activity_type: тип активности
         mode: режим (marathon/feed)
         reference_id: ID связанной записи (answers.id или feed_sessions.id)
     """
     from .users import get_intern, update_intern, moscow_today
-    
+
+    pool = await get_pool()
     today = moscow_today()
-    
+
     # 1. Записать в лог активности
     async with pool.acquire() as conn:
         try:
@@ -41,15 +42,15 @@ async def record_active_day(pool, chat_id: int, activity_type: str,
             ''', chat_id, today, activity_type, mode, reference_id)
         except Exception as e:
             logger.warning(f"Не удалось записать активность: {e}")
-    
+
     # 2. Обновить счётчики пользователя
-    user = await get_intern(pool, chat_id)
+    user = await get_intern(chat_id)
     last_active = user.get('last_active_date')
-    
+
     # Уже был активен сегодня — ничего не делаем
     if last_active == today:
         return
-    
+
     # Считаем streak
     if last_active == today - timedelta(days=1):
         # Продолжаем серию
@@ -57,30 +58,31 @@ async def record_active_day(pool, chat_id: int, activity_type: str,
     else:
         # Серия прервалась
         new_streak = 1
-    
+
     # Обновляем рекорд
     longest = max(user.get('longest_streak', 0), new_streak)
-    
-    await update_intern(pool, chat_id,
+
+    await update_intern(chat_id,
         active_days_total=user['active_days_total'] + 1,
         active_days_streak=new_streak,
         longest_streak=longest,
         last_active_date=today
     )
-    
+
     logger.info(f"📅 Активный день для {chat_id}: streak={new_streak}, total={user['active_days_total'] + 1}")
 
 
-async def get_activity_stats(pool, chat_id: int) -> dict:
+async def get_activity_stats(chat_id: int) -> dict:
     """Получить статистику активности пользователя"""
     from .users import get_intern, moscow_today
-    
-    user = await get_intern(pool, chat_id)
+
+    pool = await get_pool()
+    user = await get_intern(chat_id)
     today = moscow_today()
-    
+
     # Активность за последние 7 дней
     week_ago = today - timedelta(days=7)
-    
+
     async with pool.acquire() as conn:
         recent_activity = await conn.fetch('''
             SELECT activity_date, activity_type, mode
@@ -88,13 +90,13 @@ async def get_activity_stats(pool, chat_id: int) -> dict:
             WHERE chat_id = $1 AND activity_date >= $2
             ORDER BY activity_date DESC
         ''', chat_id, week_ago)
-    
+
     # Сгруппировать по дням
     days_active_this_week = len(set(a['activity_date'] for a in recent_activity))
-    
+
     return {
-        'total_active_days': user['active_days_total'],
-        'current_streak': user['active_days_streak'],
+        'total': user['active_days_total'],
+        'streak': user['active_days_streak'],
         'longest_streak': user['longest_streak'],
         'last_active': user['last_active_date'],
         'days_active_this_week': days_active_this_week,
@@ -102,18 +104,19 @@ async def get_activity_stats(pool, chat_id: int) -> dict:
     }
 
 
-async def get_activity_calendar(pool, chat_id: int, weeks: int = 4) -> List[dict]:
+async def get_activity_calendar(chat_id: int, weeks: int = 4) -> List[dict]:
     """
     Получить календарь активности за последние N недель.
-    
+
     Returns:
         Список дней с информацией об активности
     """
     from .users import moscow_today
-    
+
+    pool = await get_pool()
     today = moscow_today()
     start_date = today - timedelta(weeks=weeks)
-    
+
     async with pool.acquire() as conn:
         rows = await conn.fetch('''
             SELECT DISTINCT activity_date
@@ -121,9 +124,9 @@ async def get_activity_calendar(pool, chat_id: int, weeks: int = 4) -> List[dict
             WHERE chat_id = $1 AND activity_date >= $2
             ORDER BY activity_date
         ''', chat_id, start_date)
-    
+
     active_dates = {row['activity_date'] for row in rows}
-    
+
     # Генерируем календарь
     calendar = []
     current = start_date
@@ -135,5 +138,5 @@ async def get_activity_calendar(pool, chat_id: int, weeks: int = 4) -> List[dict
             'is_future': current > today
         })
         current += timedelta(days=1)
-    
+
     return calendar

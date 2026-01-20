@@ -7,19 +7,21 @@ from datetime import date, timedelta
 from typing import List, Optional
 
 from config import get_logger, FeedWeekStatus
+from db.connection import get_pool
 
 logger = get_logger(__name__)
 
 
-async def create_feed_week(pool, chat_id: int, suggested_topics: List[dict] = None,
-                          accepted_topics: List[dict] = None, 
-                          status: str = FeedWeekStatus.PLANNING) -> int:
+async def create_feed_week(chat_id: int, suggested_topics: List[str] = None,
+                          accepted_topics: List[str] = None,
+                          status: str = FeedWeekStatus.PLANNING) -> dict:
     """Создать новую неделю Ленты"""
     from .users import moscow_today
-    
+
+    pool = await get_pool()
     today = moscow_today()
     week_start = today - timedelta(days=today.weekday())  # Понедельник
-    
+
     # Получить номер недели
     async with pool.acquire() as conn:
         row = await conn.fetchrow('''
@@ -27,30 +29,31 @@ async def create_feed_week(pool, chat_id: int, suggested_topics: List[dict] = No
             FROM feed_weeks WHERE chat_id = $1
         ''', chat_id)
         week_number = row['next_week']
-        
+
         result = await conn.fetchrow('''
-            INSERT INTO feed_weeks 
+            INSERT INTO feed_weeks
             (chat_id, week_number, week_start, suggested_topics, accepted_topics, status)
             VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING id
+            RETURNING id, week_number
         ''', chat_id, week_number, week_start,
             json.dumps(suggested_topics or []),
             json.dumps(accepted_topics or []),
             status)
-        
-        return result['id']
+
+        return {'id': result['id'], 'week_number': result['week_number']}
 
 
-async def get_current_feed_week(pool, chat_id: int) -> Optional[dict]:
+async def get_current_feed_week(chat_id: int) -> Optional[dict]:
     """Получить текущую (активную или в планировании) неделю"""
+    pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow('''
-            SELECT * FROM feed_weeks 
+            SELECT * FROM feed_weeks
             WHERE chat_id = $1 AND status IN ($2, $3)
             ORDER BY created_at DESC
             LIMIT 1
         ''', chat_id, FeedWeekStatus.PLANNING, FeedWeekStatus.ACTIVE)
-        
+
         if row:
             return {
                 'id': row['id'],
@@ -66,77 +69,93 @@ async def get_current_feed_week(pool, chat_id: int) -> Optional[dict]:
         return None
 
 
-async def update_feed_week(pool, chat_id: int, week_id: int, **kwargs):
+async def update_feed_week(week_id: int, updates: dict):
     """Обновить неделю Ленты"""
+    pool = await get_pool()
     async with pool.acquire() as conn:
-        for key, value in kwargs.items():
+        for key, value in updates.items():
             if key in ['suggested_topics', 'accepted_topics']:
                 value = json.dumps(value) if not isinstance(value, str) else value
-            
+
             await conn.execute(
-                f'UPDATE feed_weeks SET {key} = $1 WHERE id = $2 AND chat_id = $3',
-                value, week_id, chat_id
+                f'UPDATE feed_weeks SET {key} = $1 WHERE id = $2',
+                value, week_id
             )
 
 
-async def create_feed_session(pool, chat_id: int, week_id: int, 
-                             day_number: int, topic: str, content: dict) -> int:
+async def create_feed_session(week_id: int, day_number: int,
+                             topic_title: str, content: dict,
+                             session_date: date) -> dict:
     """Создать сессию Ленты"""
+    pool = await get_pool()
     async with pool.acquire() as conn:
         result = await conn.fetchrow('''
-            INSERT INTO feed_sessions 
-            (chat_id, week_id, day_number, topic, content, sent_at)
-            VALUES ($1, $2, $3, $4, $5, NOW())
+            INSERT INTO feed_sessions
+            (week_id, day_number, topic_title, content, session_date, status)
+            VALUES ($1, $2, $3, $4, $5, 'active')
             RETURNING id
-        ''', chat_id, week_id, day_number, topic, json.dumps(content))
-        
-        return result['id']
+        ''', week_id, day_number, topic_title, json.dumps(content), session_date)
+
+        return {
+            'id': result['id'],
+            'week_id': week_id,
+            'day_number': day_number,
+            'topic_title': topic_title,
+            'content': content,
+            'session_date': session_date,
+            'status': 'active'
+        }
 
 
-async def update_feed_session(pool, session_id: int, **kwargs):
+async def update_feed_session(session_id: int, updates: dict):
     """Обновить сессию Ленты"""
+    pool = await get_pool()
     async with pool.acquire() as conn:
-        for key, value in kwargs.items():
+        for key, value in updates.items():
             if key == 'content':
                 value = json.dumps(value) if not isinstance(value, str) else value
-            
+
             await conn.execute(
                 f'UPDATE feed_sessions SET {key} = $1 WHERE id = $2',
                 value, session_id
             )
 
 
-async def get_feed_session(pool, session_id: int) -> Optional[dict]:
-    """Получить сессию по ID"""
+async def get_feed_session(week_id: int, session_date: date) -> Optional[dict]:
+    """Получить сессию по week_id и дате"""
+    pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
-            'SELECT * FROM feed_sessions WHERE id = $1', session_id
+            'SELECT * FROM feed_sessions WHERE week_id = $1 AND session_date = $2',
+            week_id, session_date
         )
-        
+
         if row:
             return {
                 'id': row['id'],
-                'chat_id': row['chat_id'],
                 'week_id': row['week_id'],
                 'day_number': row['day_number'],
-                'topic': row['topic'],
+                'topic_title': row['topic_title'],
                 'content': json.loads(row['content']) if row['content'] else {},
-                'user_fixation': row['user_fixation'],
-                'sent_at': row['sent_at'],
-                'completed_at': row['completed_at'],
+                'fixation_text': row.get('fixation_text', ''),
+                'session_date': row['session_date'],
+                'status': row['status'],
+                'completed_at': row.get('completed_at'),
             }
         return None
 
 
-async def get_feed_history(pool, chat_id: int, limit: int = 20) -> List[dict]:
+async def get_feed_history(chat_id: int, limit: int = 20) -> List[dict]:
     """Получить историю сессий Ленты"""
+    pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch('''
-            SELECT topic, user_fixation, sent_at, completed_at
-            FROM feed_sessions
-            WHERE chat_id = $1 AND completed_at IS NOT NULL
-            ORDER BY completed_at DESC
+            SELECT s.topic_title, s.fixation_text, s.session_date, s.completed_at
+            FROM feed_sessions s
+            JOIN feed_weeks w ON s.week_id = w.id
+            WHERE w.chat_id = $1 AND s.status = 'completed'
+            ORDER BY s.completed_at DESC
             LIMIT $2
         ''', chat_id, limit)
-        
+
         return [dict(row) for row in rows]

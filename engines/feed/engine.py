@@ -71,11 +71,11 @@ class FeedEngine:
             return False, "Профиль не найден. Пройдите /start для регистрации."
 
         # Обновляем режим
-        await update_intern(self.chat_id, {
-            'mode': Mode.FEED,
-            'feed_status': FeedStatus.ACTIVE,
-            'feed_started_at': datetime.utcnow(),
-        })
+        await update_intern(self.chat_id,
+            mode=Mode.FEED,
+            feed_status=FeedStatus.ACTIVE,
+            feed_started_at=datetime.utcnow(),
+        )
 
         # Проверяем, есть ли активная неделя
         week = await self.get_current_week()

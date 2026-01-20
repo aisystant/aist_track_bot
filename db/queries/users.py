@@ -7,6 +7,7 @@ from datetime import datetime, date, timedelta
 from typing import Optional, List
 
 from config import get_logger, MOSCOW_TZ
+from db.connection import get_pool
 
 logger = get_logger(__name__)
 
@@ -21,8 +22,9 @@ def moscow_today() -> date:
     return moscow_now().date()
 
 
-async def get_intern(pool, chat_id: int) -> dict:
+async def get_intern(chat_id: int) -> dict:
     """Получить профиль пользователя из БД"""
+    pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             'SELECT * FROM interns WHERE chat_id = $1', chat_id
@@ -154,8 +156,9 @@ def _get_default_intern(chat_id: int) -> dict:
     }
 
 
-async def update_intern(pool, chat_id: int, **kwargs):
+async def update_intern(chat_id: int, **kwargs):
     """Обновить данные пользователя"""
+    pool = await get_pool()
     async with pool.acquire() as conn:
         for key, value in kwargs.items():
             # JSON-поля
@@ -182,8 +185,9 @@ async def update_intern(pool, chat_id: int, **kwargs):
             )
 
 
-async def get_all_scheduled_interns(pool, hour: int, minute: int) -> List[int]:
+async def get_all_scheduled_interns(hour: int, minute: int) -> List[int]:
     """Получить всех пользователей с заданным временем обучения"""
+    pool = await get_pool()
     time_str = f"{hour:02d}:{minute:02d}"
     async with pool.acquire() as conn:
         rows = await conn.fetch(
