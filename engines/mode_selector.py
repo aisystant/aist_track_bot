@@ -86,10 +86,10 @@ async def select_marathon(callback: CallbackQuery):
 
     # Если марафон был на паузе - возобновляем
     if marathon_status == MarathonStatus.PAUSED:
-        await update_intern(chat_id, {
-            'mode': Mode.MARATHON,
-            'marathon_status': MarathonStatus.ACTIVE,
-        })
+        await update_intern(chat_id,
+            mode=Mode.MARATHON,
+            marathon_status=MarathonStatus.ACTIVE,
+        )
         await callback.message.edit_text(
             "✅ *Режим Марафон возобновлён!*\n\n"
             "Используйте /learn для продолжения обучения.",
@@ -103,10 +103,10 @@ async def select_marathon(callback: CallbackQuery):
             parse_mode="Markdown"
         )
     elif marathon_status == MarathonStatus.NOT_STARTED:
-        await update_intern(chat_id, {
-            'mode': Mode.MARATHON,
-            'marathon_status': MarathonStatus.ACTIVE,
-        })
+        await update_intern(chat_id,
+            mode=Mode.MARATHON,
+            marathon_status=MarathonStatus.ACTIVE,
+        )
         await callback.message.edit_text(
             "✅ *Режим Марафон активирован!*\n\n"
             "Используйте /learn для начала обучения.",
@@ -114,7 +114,7 @@ async def select_marathon(callback: CallbackQuery):
         )
     else:
         # Уже активен
-        await update_intern(chat_id, {'mode': Mode.MARATHON})
+        await update_intern(chat_id, mode=Mode.MARATHON)
         await callback.message.edit_text(
             "✅ *Режим Марафон*\n\n"
             "Используйте /learn для продолжения обучения.",
@@ -135,11 +135,11 @@ async def select_feed(callback: CallbackQuery):
 
     # Если был активный марафон - ставим на паузу
     if current_mode == Mode.MARATHON and marathon_status == MarathonStatus.ACTIVE:
-        await update_intern(chat_id, {
-            'mode': Mode.FEED,
-            'marathon_status': MarathonStatus.PAUSED,
-            'feed_status': FeedStatus.ACTIVE,
-        })
+        await update_intern(chat_id,
+            mode=Mode.FEED,
+            marathon_status=MarathonStatus.PAUSED,
+            feed_status=FeedStatus.ACTIVE,
+        )
         await callback.message.edit_text(
             "✅ *Режим Лента активирован!*\n\n"
             "⏸️ Марафон поставлен на паузу. "
@@ -148,10 +148,10 @@ async def select_feed(callback: CallbackQuery):
             parse_mode="Markdown"
         )
     else:
-        await update_intern(chat_id, {
-            'mode': Mode.FEED,
-            'feed_status': FeedStatus.ACTIVE,
-        })
+        await update_intern(chat_id,
+            mode=Mode.FEED,
+            feed_status=FeedStatus.ACTIVE,
+        )
         await callback.message.edit_text(
             "✅ *Режим Лента активирован!*\n\n"
             "Используйте /feed для получения тем на неделю.",

@@ -1178,8 +1178,8 @@ def kb_update_profile() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="🎯 Что хочу изменить", callback_data="upd_goals")],
         [InlineKeyboardButton(text="⏱ Время на тему", callback_data="upd_duration"),
          InlineKeyboardButton(text="⏰ Расписание", callback_data="upd_schedule")],
-        [InlineKeyboardButton(text="🎚 Уровень сложности", callback_data="upd_bloom")],
-        [InlineKeyboardButton(text="🗓 Дата старта", callback_data="upd_marathon_start")],
+        [InlineKeyboardButton(text="🎚 Сложность", callback_data="upd_bloom")],
+        [InlineKeyboardButton(text="🎯 Выбор режима", callback_data="upd_mode")],
         [InlineKeyboardButton(text="❌ Отмена", callback_data="upd_cancel")]
     ])
 
@@ -1715,6 +1715,25 @@ async def on_save_bloom(callback: CallbackQuery, state: FSMContext):
         parse_mode="Markdown"
     )
     await state.clear()
+
+@router.callback_query(UpdateStates.choosing_field, F.data == "upd_mode")
+async def on_upd_mode(callback: CallbackQuery, state: FSMContext):
+    """Переход к выбору режима (Марафон/Лента)"""
+    await state.clear()
+    await callback.answer()
+
+    # Импортируем функцию выбора режима
+    try:
+        from engines.mode_selector import cmd_mode
+        # Создаём фейковое сообщение для вызова команды
+        await cmd_mode(callback.message)
+    except ImportError:
+        await callback.message.edit_text(
+            "🎯 *Выбор режима*\n\n"
+            "Используйте команду /mode для выбора режима работы.",
+            parse_mode="Markdown"
+        )
+
 
 @router.callback_query(UpdateStates.choosing_field, F.data == "upd_marathon_start")
 async def on_upd_marathon_start(callback: CallbackQuery, state: FSMContext):
