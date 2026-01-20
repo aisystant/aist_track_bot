@@ -129,10 +129,8 @@ BLOOM_LEVELS = {
 BLOOM_AUTO_UPGRADE_AFTER = 7  # после 7 тем уровень повышается
 
 # Лимит тем в день (для развития систематичности)
-# DAILY_TOPICS_LIMIT = 2  # не используется в коде
-# MAX_TOPICS_PER_DAY = 4  # макс тем в день (нагнать 1 день)
-DAILY_TOPICS_LIMIT = 100  # ВРЕМЕННО: для тестирования
-MAX_TOPICS_PER_DAY = 100  # ВРЕМЕННО: для тестирования
+DAILY_TOPICS_LIMIT = 2
+MAX_TOPICS_PER_DAY = 4  # макс тем в день (нагнать 1 день)
 MARATHON_DAYS = 14  # длительность марафона
 
 # ============= СОСТОЯНИЯ FSM =============
