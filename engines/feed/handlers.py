@@ -242,7 +242,7 @@ def parse_topic_selection(text: str, topics_count: int) -> tuple[set, list]:
     return selected_indices, custom_topics
 
 
-@feed_router.message(FeedStates.choosing_topics, F.text, ~F.text.startswith('/'))
+@feed_router.message(FeedStates.choosing_topics, F.text.func(lambda t: not t.startswith('/')))
 async def handle_topic_text_selection(message: Message, state: FSMContext):
     """Обрабатывает текстовый выбор тем"""
     try:
@@ -445,7 +445,7 @@ async def show_today_session(message: Message, engine: FeedEngine, state: FSMCon
         await message.answer("Произошла ошибка при загрузке сессии. Попробуйте позже.")
 
 
-@feed_router.message(FeedStates.reading_content, F.text, ~F.text.startswith('/'))
+@feed_router.message(FeedStates.reading_content, F.text.func(lambda t: not t.startswith('/')))
 async def handle_feed_question(message: Message, state: FSMContext):
     """Обрабатывает вопрос пользователя во время чтения контента"""
     try:
@@ -552,7 +552,7 @@ async def start_fixation(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-@feed_router.message(FeedStates.waiting_fixation, F.text, ~F.text.startswith('/'))
+@feed_router.message(FeedStates.waiting_fixation, F.text.func(lambda t: not t.startswith('/')))
 async def receive_fixation(message: Message, state: FSMContext):
     """Принимает фиксацию пользователя"""
     text = message.text.strip()
@@ -664,7 +664,7 @@ async def keep_tomorrow_topic(callback: CallbackQuery, state: FSMContext):
     await state.clear()
 
 
-@feed_router.message(FeedStates.choosing_tomorrow, F.text, ~F.text.startswith('/'))
+@feed_router.message(FeedStates.choosing_tomorrow, F.text.func(lambda t: not t.startswith('/')))
 async def handle_tomorrow_selection(message: Message, state: FSMContext):
     """Обрабатывает выбор/изменение темы на завтра"""
     import re
