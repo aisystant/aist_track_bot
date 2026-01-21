@@ -203,12 +203,23 @@ def is_clear_question(text: str) -> bool:
     if first_word in QUESTION_WORDS:
         return True
 
-    # Проверяем начало с вопросительных конструкций
+    # Проверяем начало с вопросительных конструкций (все языки)
     question_starters = [
+        # Русские
         'можно ли', 'нельзя ли', 'не могли бы',
         'а что если', 'а как', 'а почему', 'а зачем',
         'скажи', 'расскажи', 'объясни', 'поясни',
         'в чём', 'в чем',
+        # Английские
+        'can you', 'could you', 'would you', 'will you',
+        'tell me', 'explain', 'describe',
+        'what is', 'what are', 'what does', 'what do',
+        'how is', 'how are', 'how does', 'how do', 'how can',
+        'why is', 'why are', 'why does', 'why do',
+        'is it', 'is there', 'are there',
+        # Испанские
+        'puedes', 'podrías', 'dime', 'explica',
+        'qué es', 'cómo es', 'por qué',
     ]
 
     for starter in question_starters:
@@ -244,11 +255,19 @@ def question_likelihood(text: str) -> float:
             score += 0.1
             break  # Только один раз
 
-    # Вопросительные конструкции
+    # Вопросительные конструкции (все языки)
     question_phrases = [
+        # Русские
         'можно ли', 'как это', 'что значит', 'что такое',
         'в чём разница', 'в чем разница', 'чем отличается',
         'почему так', 'зачем нужен', 'как работает',
+        # Английские
+        'what is', 'what are', 'what does', 'how does', 'how to',
+        'why is', 'why are', 'can i', 'could you', 'tell me',
+        'difference between', 'how it works', 'is it possible',
+        # Испанские
+        'qué es', 'cómo funciona', 'por qué', 'cuál es',
+        'diferencia entre', 'es posible',
     ]
     for phrase in question_phrases:
         if phrase in text:

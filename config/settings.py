@@ -161,14 +161,35 @@ FEED_TOPICS_TO_SUGGEST = 5  # сколько тем предлагать на в
 
 # ============= НАСТРОЙКИ ИНТЕНТОВ =============
 
-QUESTION_WORDS = ['что', 'как', 'почему', 'зачем', 'когда', 'где', 'кто', 'какой', 'можно ли', 'чем']
-TOPIC_REQUEST_PATTERNS = ['хочу', 'давай', 'предложи', 'тема']
+# Вопросительные слова для всех поддерживаемых языков
+QUESTION_WORDS = [
+    # Русские
+    'что', 'как', 'почему', 'зачем', 'когда', 'где', 'кто', 'какой', 'можно ли', 'чем',
+    # Английские
+    'what', 'how', 'why', 'when', 'where', 'who', 'which', 'can', 'could', 'is', 'are', 'do', 'does',
+    # Испанские
+    'qué', 'cómo', 'por qué', 'cuándo', 'dónde', 'quién', 'cuál', 'puede',
+]
+TOPIC_REQUEST_PATTERNS = ['хочу', 'давай', 'предложи', 'тема', 'want', 'give', 'suggest', 'topic', 'quiero', 'dame']
 COMMAND_WORDS = {
+    # Русские
     'проще': 'simpler',
     'глубже': 'deeper',
     'примеры': 'examples',
     'дальше': 'next',
     'пропустить': 'skip',
+    # Английские
+    'simpler': 'simpler',
+    'deeper': 'deeper',
+    'examples': 'examples',
+    'next': 'next',
+    'skip': 'skip',
+    # Испанские
+    'más simple': 'simpler',
+    'más profundo': 'deeper',
+    'ejemplos': 'examples',
+    'siguiente': 'next',
+    'saltar': 'skip',
 }
 
 # ============= КАТЕГОРИИ РАБОЧИХ ПРОДУКТОВ =============
