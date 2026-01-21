@@ -213,6 +213,14 @@ async def generate_answer(
     name = intern.get('name', 'пользователь')
     occupation = intern.get('occupation', '')
     complexity = intern.get('complexity_level', intern.get('bloom_level', 1))
+    lang = intern.get('language', 'ru')
+
+    # Определяем язык ответа
+    lang_instruction = {
+        'ru': "Отвечай на русском языке.",
+        'en': "Answer in English.",
+        'es': "Responde en español."
+    }.get(lang, "Отвечай на русском языке.")
 
     # Формируем системный промпт
     context_info = ""
@@ -244,6 +252,8 @@ async def generate_answer(
 
     system_prompt = f"""Ты — дружелюбный наставник по системному мышлению и личному развитию.
 Отвечаешь на вопросы пользователя {name}.{occupation_info}{context_info}
+
+{lang_instruction}
 
 ПРАВИЛА:
 1. Отвечай кратко и по существу (3-5 абзацев максимум)

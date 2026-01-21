@@ -39,7 +39,17 @@ async def suggest_weekly_topics(intern: dict) -> List[Dict]:
     # Формируем профиль для промпта
     interests_str = ', '.join(interests) if interests else 'не указаны'
 
+    # Определяем язык ответа
+    lang = intern.get('language', 'ru')
+    lang_instruction = {
+        'ru': "Пиши на русском языке.",
+        'en': "Write in English.",
+        'es': "Escribe en español."
+    }.get(lang, "Пиши на русском языке.")
+
     system_prompt = f"""Ты — персональный наставник по системному мышлению.
+{lang_instruction}
+
 Твоя задача — предложить {FEED_TOPICS_TO_SUGGEST} тем для изучения.
 
 ПРОФИЛЬ УЧЕНИКА:
@@ -249,7 +259,17 @@ async def generate_topic_content(
     # Рассчитываем объём текста
     words = session_duration * 100  # ~100 слов в минуту чтения
 
+    # Определяем язык ответа
+    lang = intern.get('language', 'ru')
+    lang_instruction = {
+        'ru': "Пиши на русском языке.",
+        'en': "Write in English.",
+        'es': "Escribe en español."
+    }.get(lang, "Пиши на русском языке.")
+
     system_prompt = f"""Ты — персональный наставник по системному мышлению.
+{lang_instruction}
+
 Создай микро-урок на тему "{topic.get('title')}" для {name}.
 
 ПРОФИЛЬ:
