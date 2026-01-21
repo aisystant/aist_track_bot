@@ -165,6 +165,12 @@ class FeedEngine:
                 return existing, "Сегодняшний дайджест уже завершён. До завтра!"
             return existing, "Продолжаем дайджест..."
 
+        # Проверяем, есть ли незавершённая сессия за предыдущие дни
+        previous_incomplete = await self._get_incomplete_session(week['id'])
+        if previous_incomplete:
+            # Возвращаем незавершённую сессию — нужно сначала её завершить
+            return previous_incomplete, "У вас есть незавершённый дайджест. Напишите фиксацию, чтобы продолжить."
+
         # Создаём новую сессию
         intern = await self.get_intern()
         topics = week.get('accepted_topics', [])
@@ -273,6 +279,11 @@ class FeedEngine:
             return True, "Отлично! Неделя завершена. Используйте /feed для новых тем."
 
         return True, "Фиксация сохранена! До завтра."
+
+    async def _get_incomplete_session(self, week_id: int) -> Optional[Dict]:
+        """Находит незавершённую сессию за предыдущие дни"""
+        from db.queries.feed import get_incomplete_feed_session
+        return await get_incomplete_feed_session(week_id)
 
     # ==================== ЗАВЕРШЕНИЕ НЕДЕЛИ ====================
 
