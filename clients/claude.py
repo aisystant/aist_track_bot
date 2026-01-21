@@ -19,6 +19,7 @@ from config import (
     STUDY_DURATIONS,
     BLOOM_LEVELS,
     COMPLEXITY_LEVELS,
+    ONTOLOGY_RULES,
 )
 from core.helpers import (
     get_personalization_prompt,
@@ -191,7 +192,9 @@ class ClaudeClient:
 - Использовать заголовки типа "Вопрос:", "Вопрос для размышления:", "Вопрос для проверки:" и т.п.
 - Заканчивать текст вопросом
 Вопрос будет задан отдельно после текста.
-{context_instruction}"""
+{context_instruction}
+
+{ONTOLOGY_RULES}"""
 
         pain_point = topic.get('pain_point', '')
         key_insight = topic.get('key_insight', '')
@@ -229,7 +232,9 @@ class ClaudeClient:
 {get_personalization_prompt(intern)}
 
 Напиши краткое (3-5 предложений) введение к практическому заданию.
-Объясни, зачем это задание и как оно связано с темой дня."""
+Объясни, зачем это задание и как оно связано с темой дня.
+
+{ONTOLOGY_RULES}"""
 
         task = topic.get('task', '')
         work_product = topic.get('work_product', '')
@@ -305,7 +310,9 @@ class ClaudeClient:
 Вопрос должен быть связан с профессией: "{occupation}".
 Уровень сложности: {bloom['name']} — {bloom['desc']}
 {question_type_hint}
-{templates_hint}"""
+{templates_hint}
+
+{ONTOLOGY_RULES}"""
 
         user_prompt = f"""Тема: {topic.get('title')}
 Понятие: {topic.get('main_concept')}
