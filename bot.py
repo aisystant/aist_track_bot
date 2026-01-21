@@ -1,6 +1,6 @@
 """
-AIST Pilot Bot — Telegram-бот для систематического обучения
-GitHub: https://github.com/aisystant/aist_pilot_bot
+AI System Track (@aist_track_bot) — Telegram-бот для системного развития
+GitHub: https://github.com/aisystant/aist_track_bot
 
 Миссия: Помочь стажёрам трансформироваться из людей с «непродуктивными убеждениями»
 и случайных учеников в систематических учеников, которые собраны и удерживают
@@ -1311,11 +1311,11 @@ async def cmd_start(message: Message, state: FSMContext):
         return
 
     await message.answer(
-        "👋 Hello! I'm your personal assistant for systematic development.\n"
+        "👋 Hello! I'm your AI guide for systemic self-development (AI System Track).\n"
         "I'll ask a few questions to personalize the content for you (~2 min).\n"
         "What is your name?\n\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "👋 Здравствуйте! Я персональный помощник для системного развития.\n"
+        "👋 Здравствуйте! Я — ваш AI-помощник по системному развитию (AI System Track).\n"
         "Задам несколько вопросов, чтобы адаптировать материал под вас (~2 мин).\n"
         "Как вас зовут?"
     )
