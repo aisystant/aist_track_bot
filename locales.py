@@ -168,7 +168,7 @@ TRANSLATIONS = {
         'buttons.edit_topic': '✏️',
         'buttons.back_to_menu': '« Назад',
         'buttons.select_topics': 'Выбрать темы на неделю',
-        'buttons.reset_topics': 'Выбрать темы заново',
+        'buttons.reset_topics': 'Сгенерировать заново',
     },
 
     'en': {
@@ -329,7 +329,7 @@ TRANSLATIONS = {
         'buttons.edit_topic': '✏️',
         'buttons.back_to_menu': '« Back',
         'buttons.select_topics': 'Select week topics',
-        'buttons.reset_topics': 'Choose topics again',
+        'buttons.reset_topics': 'Regenerate topics',
     },
 
     'es': {
@@ -490,7 +490,7 @@ TRANSLATIONS = {
         'buttons.edit_topic': '✏️',
         'buttons.back_to_menu': '« Volver',
         'buttons.select_topics': 'Seleccionar temas de la semana',
-        'buttons.reset_topics': 'Elegir temas de nuevo',
+        'buttons.reset_topics': 'Regenerar temas',
     }
 }
 
