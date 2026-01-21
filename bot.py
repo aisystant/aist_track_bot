@@ -1284,17 +1284,16 @@ def kb_learn(lang: str = 'ru') -> InlineKeyboardMarkup:
 
 def kb_update_profile(lang: str = 'ru') -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="👤 " + t('onboarding.ask_name', lang)[:10], callback_data="upd_name"),
-         InlineKeyboardButton(text="💼 " + t('onboarding.ask_occupation', lang)[:10], callback_data="upd_occupation")],
-        [InlineKeyboardButton(text="🎨 " + t('onboarding.ask_interests', lang)[:15], callback_data="upd_interests")],
-        [InlineKeyboardButton(text="💫 " + t('onboarding.ask_values', lang)[:20], callback_data="upd_motivation")],
-        [InlineKeyboardButton(text="🎯 " + t('onboarding.ask_goals', lang)[:20], callback_data="upd_goals")],
-        [InlineKeyboardButton(text="⏱ " + t('onboarding.ask_duration', lang)[:12], callback_data="upd_duration"),
-         InlineKeyboardButton(text="⏰ " + t('onboarding.ask_time', lang)[:10], callback_data="upd_schedule")],
-        [InlineKeyboardButton(text="🎚 " + t('settings.title', lang)[:10], callback_data="upd_bloom")],
-        [InlineKeyboardButton(text="🎯 " + t('modes.select', lang)[:15], callback_data="upd_mode")],
-        [InlineKeyboardButton(text=t('buttons.change_language', lang), callback_data="upd_language")],
-        [InlineKeyboardButton(text=t('buttons.cancel', lang), callback_data="upd_cancel")]
+        [InlineKeyboardButton(text="👤 " + t('buttons.name', lang), callback_data="upd_name"),
+         InlineKeyboardButton(text="💼 " + t('buttons.occupation', lang), callback_data="upd_occupation")],
+        [InlineKeyboardButton(text="🎨 " + t('buttons.interests', lang), callback_data="upd_interests"),
+         InlineKeyboardButton(text="🎯 " + t('buttons.goals', lang), callback_data="upd_goals")],
+        [InlineKeyboardButton(text="⏱ " + t('buttons.duration', lang), callback_data="upd_duration"),
+         InlineKeyboardButton(text="⏰ " + t('buttons.schedule', lang), callback_data="upd_schedule")],
+        [InlineKeyboardButton(text="🎚 " + t('buttons.difficulty', lang), callback_data="upd_bloom"),
+         InlineKeyboardButton(text="🤖 " + t('buttons.bot_mode', lang), callback_data="upd_mode")],
+        [InlineKeyboardButton(text="🌐 Language (en, es, ru)", callback_data="upd_language")],
+        [InlineKeyboardButton(text="❌ " + t('buttons.cancel', lang), callback_data="upd_cancel")]
     ])
 
 def kb_bloom_level() -> InlineKeyboardMarkup:
@@ -1674,14 +1673,16 @@ async def cmd_progress(message: Message):
 @router.message(Command("profile"))
 async def cmd_profile(message: Message):
     intern = await get_intern(message.chat.id)
+    lang = intern.get('language', 'ru')
+
     if not intern['onboarding_completed']:
-        await message.answer("Сначала /start")
+        await message.answer(t('profile.first_start', lang))
         return
 
     duration = STUDY_DURATIONS.get(str(intern['study_duration']), {})
     bloom = BLOOM_LEVELS.get(intern['bloom_level'], BLOOM_LEVELS[1])
 
-    interests_str = ', '.join(intern['interests']) if intern['interests'] else 'не указаны'
+    interests_str = ', '.join(intern['interests']) if intern['interests'] else t('profile.not_specified', lang)
     motivation_short = intern['motivation'][:100] + '...' if len(intern.get('motivation', '')) > 100 else intern.get('motivation', '')
     goals_short = intern['goals'][:100] + '...' if len(intern['goals']) > 100 else intern['goals']
 
@@ -1689,35 +1690,53 @@ async def cmd_profile(message: Message):
         f"👤 *{intern['name']}*\n"
         f"💼 {intern.get('occupation', '')}\n"
         f"🎨 {interests_str}\n\n"
-        f"💫 *Что важно:* {motivation_short or 'не указано'}\n"
-        f"🎯 *Что изменить:* {goals_short}\n\n"
-        f"{duration.get('emoji', '')} {duration.get('name', '')} на тему\n"
-        f"{bloom['emoji']} Уровень: {bloom['short_name']} «{bloom['name']}»\n"
-        f"⏰ Напоминание в {intern['schedule_time']}\n\n"
+        f"💫 *{t('profile.what_important', lang)}:* {motivation_short or t('profile.not_specified', lang)}\n"
+        f"🎯 *{t('profile.what_change', lang)}:* {goals_short}\n\n"
+        f"{duration.get('emoji', '')} {duration.get('name', '')}\n"
+        f"{bloom['emoji']} {bloom['short_name']} «{bloom['name']}»\n"
+        f"⏰ {t('profile.reminder_at', lang)} {intern['schedule_time']}\n"
+        f"🌐 {get_language_name(lang)}\n\n"
         f"🆔 `{message.chat.id}`\n\n"
-        f"/update — обновить профиль",
+        f"{t('commands.update', lang)}",
         parse_mode="Markdown"
     )
 
 @router.message(Command("help"))
 async def cmd_help(message: Message):
+    intern = await get_intern(message.chat.id)
+    lang = intern.get('language', 'ru') if intern else 'ru'
+
     await message.answer(
-        "📖 *Основные команды:*\n\n"
-        "/learn — получить новую тему для изучения\n"
-        "/mode — выбор режима (Марафон/Лента)\n"
-        "/progress — посмотреть свой прогресс\n"
-        "/profile — посмотреть свой профиль\n"
-        "/update — обновить профиль\n\n"
-        "*Как работает обучение:*\n"
-        "1. Я отправляю персонализированный материал\n"
-        "2. Вы изучаете его (5-25 мин)\n"
-        "3. Отвечаете на вопрос для закрепления\n"
-        "4. Тема засчитывается в прогресс\n\n"
-        "Материал буду отправлять в заданное время или по /learn\n\n"
+        f"📖 *{t('help.title', lang)}:*\n\n"
+        f"{t('commands.learn', lang)}\n"
+        f"/mode — {t('menu.mode', lang)}\n"
+        f"{t('commands.progress', lang)}\n"
+        f"{t('commands.profile', lang)}\n"
+        f"{t('commands.update', lang)}\n"
+        f"{t('commands.language', lang)}\n\n"
+        f"*{t('help.how_it_works', lang)}:*\n"
+        f"{t('help.step1', lang)}\n"
+        f"{t('help.step2', lang)}\n"
+        f"{t('help.step3', lang)}\n"
+        f"{t('help.step4', lang)}\n\n"
+        f"{t('help.schedule_note', lang)}\n\n"
         "🔗 [Мастерская инженеров-менеджеров](https://system-school.ru/)\n\n"
-        "💬 Замечания и предложения: @tserentserenov",
+        f"💬 {t('help.feedback', lang)}: @tserentserenov",
         parse_mode="Markdown"
     )
+
+@router.message(Command("language"))
+async def cmd_language(message: Message, state: FSMContext):
+    """Команда смены языка напрямую"""
+    intern = await get_intern(message.chat.id)
+    lang = intern.get('language', 'ru') if intern else 'ru'
+
+    await message.answer(
+        t('settings.language.title', lang),
+        reply_markup=kb_language_select()
+    )
+    await state.set_state(UpdateStates.choosing_field)
+
 
 # --- Обновление профиля ---
 
@@ -1768,10 +1787,11 @@ async def cmd_update(message: Message, state: FSMContext):
 @router.callback_query(UpdateStates.choosing_field, F.data == "upd_name")
 async def on_upd_name(callback: CallbackQuery, state: FSMContext):
     intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru')
     await callback.answer()
     await callback.message.edit_text(
-        f"👤 *Ваше имя:* {intern['name']}\n\n"
-        "Как вас зовут?",
+        f"👤 *{t('update.your_name', lang)}:* {intern['name']}\n\n"
+        f"{t('update.whats_your_name', lang)}",
         parse_mode="Markdown"
     )
     await state.set_state(UpdateStates.updating_name)
@@ -1779,10 +1799,11 @@ async def on_upd_name(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(UpdateStates.choosing_field, F.data == "upd_occupation")
 async def on_upd_occupation(callback: CallbackQuery, state: FSMContext):
     intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru')
     await callback.answer()
     await callback.message.edit_text(
-        f"💼 *Ваше занятие:* {intern.get('occupation', '') or 'не указано'}\n\n"
-        "Чем вы занимаетесь?",
+        f"💼 *{t('update.your_occupation', lang)}:* {intern.get('occupation', '') or t('profile.not_specified', lang)}\n\n"
+        f"{t('update.whats_your_occupation', lang)}",
         parse_mode="Markdown"
     )
     await state.set_state(UpdateStates.updating_occupation)
@@ -1790,12 +1811,12 @@ async def on_upd_occupation(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(UpdateStates.choosing_field, F.data == "upd_interests")
 async def on_upd_interests(callback: CallbackQuery, state: FSMContext):
     intern = await get_intern(callback.message.chat.id)
-    interests_str = ', '.join(intern['interests']) if intern['interests'] else 'не указаны'
+    lang = intern.get('language', 'ru')
+    interests_str = ', '.join(intern['interests']) if intern['interests'] else t('profile.not_specified', lang)
     await callback.answer()
     await callback.message.edit_text(
-        f"🎨 *Ваши интересы:* {interests_str}\n\n"
-        "_Например: технологии, космос, кулинария, спорт, музыка, путешествия_\n\n"
-        "Расскажите о своих интересах и хобби:",
+        f"🎨 *{t('update.your_interests', lang)}:* {interests_str}\n\n"
+        f"{t('update.what_interests', lang)}",
         parse_mode="Markdown"
     )
     await state.set_state(UpdateStates.updating_interests)
@@ -1814,10 +1835,11 @@ async def on_upd_motivation(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(UpdateStates.choosing_field, F.data == "upd_goals")
 async def on_upd_goals(callback: CallbackQuery, state: FSMContext):
     intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru')
     await callback.answer()
     await callback.message.edit_text(
-        f"🎯 *Что хотите изменить:*\n{intern['goals'] or 'не указано'}\n\n"
-        "Что хотите изменить в своей жизни или работе?",
+        f"🎯 *{t('update.your_goals', lang)}:*\n{intern['goals'] or t('profile.not_specified', lang)}\n\n"
+        f"{t('update.what_goals', lang)}",
         parse_mode="Markdown"
     )
     await state.set_state(UpdateStates.updating_goals)
@@ -1825,25 +1847,25 @@ async def on_upd_goals(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(UpdateStates.choosing_field, F.data == "upd_duration")
 async def on_upd_duration(callback: CallbackQuery, state: FSMContext):
     intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru')
     duration = STUDY_DURATIONS.get(str(intern['study_duration']), {})
     await callback.answer()
     await callback.message.edit_text(
-        f"⏱ *Текущее время:* {duration.get('emoji', '')} {duration.get('name', '')}\n\n"
-        "Сколько минут готовы уделять изучению одной темы?",
+        f"⏱ *{t('update.current_time', lang)}:* {duration.get('emoji', '')} {duration.get('name', '')}\n\n"
+        f"{t('update.how_many_minutes', lang)}",
         parse_mode="Markdown",
-        reply_markup=kb_study_duration()
+        reply_markup=kb_study_duration(lang)
     )
     await state.set_state(UpdateStates.updating_duration)
 
 @router.callback_query(UpdateStates.choosing_field, F.data == "upd_schedule")
 async def on_upd_schedule(callback: CallbackQuery, state: FSMContext):
     intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru')
     await callback.answer()
     await callback.message.edit_text(
-        f"⏰ *Текущее время напоминания:* {intern['schedule_time']}\n\n"
-        "Во сколько напоминать о новой теме?\n"
-        "_Напишите время в формате ЧЧ:ММ (например: 09:00)_\n"
-        "_Часовой пояс: UTC+3 (Москва)_",
+        f"⏰ *{t('update.current_schedule', lang)}:* {intern['schedule_time']}\n\n"
+        f"{t('update.when_remind', lang)}",
         parse_mode="Markdown"
     )
     await state.set_state(UpdateStates.updating_schedule)
@@ -1851,13 +1873,13 @@ async def on_upd_schedule(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(UpdateStates.choosing_field, F.data == "upd_bloom")
 async def on_upd_bloom(callback: CallbackQuery, state: FSMContext):
     intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru')
     bloom = BLOOM_LEVELS.get(intern['bloom_level'], BLOOM_LEVELS[1])
     await callback.answer()
     await callback.message.edit_text(
-        f"🎚 *Текущий уровень сложности:* {bloom['emoji']} {bloom['short_name']} «{bloom['name']}»\n"
+        f"🎚 *{t('update.current_difficulty', lang)}:* {bloom['emoji']} {bloom['short_name']} «{bloom['name']}»\n"
         f"_{bloom['desc']}_\n\n"
-        f"Пройдено тем на этом уровне: {intern['topics_at_current_bloom']}/{BLOOM_AUTO_UPGRADE_AFTER}\n\n"
-        "Выберите новый уровень сложности вопросов:",
+        f"{t('update.select_difficulty', lang)}",
         parse_mode="Markdown",
         reply_markup=kb_bloom_level()
     )
@@ -2007,69 +2029,77 @@ async def on_save_goals(message: Message, state: FSMContext):
 
 @router.message(UpdateStates.updating_name)
 async def on_save_name(message: Message, state: FSMContext):
+    intern = await get_intern(message.chat.id)
+    lang = intern.get('language', 'ru')
     await update_intern(message.chat.id, name=message.text.strip())
     await message.answer(
-        f"✅ Имя изменено на *{message.text.strip()}*!\n\n"
-        "/learn — продолжить обучение\n"
-        "/update — обновить ещё что-то",
+        f"✅ {t('update.name_changed', lang)}: *{message.text.strip()}*\n\n"
+        f"{t('commands.learn', lang)}\n"
+        f"{t('commands.update', lang)}",
         parse_mode="Markdown"
     )
     await state.clear()
 
 @router.message(UpdateStates.updating_occupation)
 async def on_save_occupation(message: Message, state: FSMContext):
+    intern = await get_intern(message.chat.id)
+    lang = intern.get('language', 'ru')
     await update_intern(message.chat.id, occupation=message.text.strip())
     await message.answer(
-        "✅ Занятие обновлено!\n\n"
-        "Теперь примеры будут из вашей области.\n\n"
-        "/learn — продолжить обучение\n"
-        "/update — обновить ещё что-то"
+        f"✅ {t('update.occupation_changed', lang)}!\n\n"
+        f"{t('commands.learn', lang)}\n"
+        f"{t('commands.update', lang)}"
     )
     await state.clear()
 
 @router.message(UpdateStates.updating_interests)
 async def on_save_interests(message: Message, state: FSMContext):
+    intern = await get_intern(message.chat.id)
+    lang = intern.get('language', 'ru')
     interests = [i.strip() for i in message.text.replace(',', ';').split(';') if i.strip()]
     await update_intern(message.chat.id, interests=interests)
     await message.answer(
-        "✅ Интересы обновлены!\n\n"
-        "Теперь примеры будут ближе к вашим хобби.\n\n"
-        "/learn — продолжить обучение\n"
-        "/update — обновить ещё что-то"
+        f"✅ {t('update.interests_changed', lang)}!\n\n"
+        f"{t('commands.learn', lang)}\n"
+        f"{t('commands.update', lang)}"
     )
     await state.clear()
 
 @router.callback_query(UpdateStates.updating_duration, F.data.startswith("duration_"))
 async def on_save_duration(callback: CallbackQuery, state: FSMContext):
+    intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru')
     duration = int(callback.data.replace("duration_", ""))
     await update_intern(callback.message.chat.id, study_duration=duration)
     duration_info = STUDY_DURATIONS.get(str(duration), {})
-    await callback.answer("Сохранено!")
+    await callback.answer(t('update.saved', lang))
     await callback.message.edit_text(
-        f"✅ Время на тему изменено: {duration_info.get('emoji', '')} *{duration_info.get('name', '')}*\n\n"
-        "/learn — продолжить обучение\n"
-        "/update — обновить ещё что-то",
+        f"✅ {t('update.duration_changed', lang)}: {duration_info.get('emoji', '')} *{duration_info.get('name', '')}*\n\n"
+        f"{t('commands.learn', lang)}\n"
+        f"{t('commands.update', lang)}",
         parse_mode="Markdown"
     )
     await state.clear()
 
 @router.message(UpdateStates.updating_schedule)
 async def on_save_schedule(message: Message, state: FSMContext):
+    intern = await get_intern(message.chat.id)
+    lang = intern.get('language', 'ru')
     try:
         h, m = map(int, message.text.strip().split(":"))
         if not (0 <= h <= 23 and 0 <= m <= 59):
             raise ValueError
     except:
-        await message.answer("Формат: ЧЧ:ММ (например 09:00)")
+        await message.answer(t('errors.try_again', lang) + " (HH:MM)")
         return
 
     # Нормализуем формат времени (с ведущими нулями)
     normalized_time = f"{h:02d}:{m:02d}"
     await update_intern(message.chat.id, schedule_time=normalized_time)
     await message.answer(
-        f"✅ Время напоминания изменено на *{normalized_time}*!\n\n"
-        "/learn — продолжить обучение\n"
-        "/update — обновить ещё что-то",
+        f"✅ {t('update.schedule_changed', lang)}: *{normalized_time}*\n\n"
+        f"{t('commands.learn', lang)}\n"
+        f"{t('commands.update', lang)}",
         parse_mode="Markdown"
     )
     await state.clear()
@@ -2809,17 +2839,42 @@ async def main():
     # Сохраняем dispatcher для доступа к FSM storage из планировщика
     _dispatcher = dp
 
-    # Установка команд бота (Menu-кнопка)
-    # /learn вверху - самая частая команда
+    # Установка команд бота для разных языков
+    # Русский (по умолчанию)
     await bot.set_my_commands([
         BotCommand(command="learn", description="Получить новую тему"),
         BotCommand(command="progress", description="Мой прогресс"),
         BotCommand(command="profile", description="Мой профиль"),
         BotCommand(command="update", description="Обновить профиль"),
-        BotCommand(command="mode", description="Выбор режима (Марафон/Лента)"),
+        BotCommand(command="mode", description="Выбор режима"),
+        BotCommand(command="language", description="Change language"),
         BotCommand(command="start", description="Перезапустить онбординг"),
         BotCommand(command="help", description="Справка")
     ])
+
+    # Английский
+    await bot.set_my_commands([
+        BotCommand(command="learn", description="Get a new topic"),
+        BotCommand(command="progress", description="My progress"),
+        BotCommand(command="profile", description="My profile"),
+        BotCommand(command="update", description="Update profile"),
+        BotCommand(command="mode", description="Select mode"),
+        BotCommand(command="language", description="Change language"),
+        BotCommand(command="start", description="Restart onboarding"),
+        BotCommand(command="help", description="Help")
+    ], language_code="en")
+
+    # Испанский
+    await bot.set_my_commands([
+        BotCommand(command="learn", description="Obtener tema"),
+        BotCommand(command="progress", description="Mi progreso"),
+        BotCommand(command="profile", description="Mi perfil"),
+        BotCommand(command="update", description="Actualizar perfil"),
+        BotCommand(command="mode", description="Seleccionar modo"),
+        BotCommand(command="language", description="Change language"),
+        BotCommand(command="start", description="Reiniciar"),
+        BotCommand(command="help", description="Ayuda")
+    ], language_code="es")
 
     # Запуск планировщика
     scheduler.add_job(scheduled_check, 'cron', minute='*')
