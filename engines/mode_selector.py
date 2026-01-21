@@ -182,6 +182,63 @@ async def show_marathon_settings(message, intern: dict, edit: bool = False):
     await show_marathon_activated(message, intern, feed_paused=False, edit=edit)
 
 
+async def show_feed_activated(message, intern: dict, marathon_paused: bool = False, edit: bool = False):
+    """Показывает сообщение об активации Ленты"""
+    chat_id = message.chat.id if hasattr(message, 'chat') else intern.get('chat_id')
+    lang = intern.get('language', 'ru') or 'ru'
+
+    # Получаем настройки
+    settings_text = get_user_settings_text(intern)
+
+    # Проверяем, есть ли активная неделя
+    from .feed.engine import FeedEngine
+    engine = FeedEngine(chat_id)
+    status = await engine.get_status()
+    has_active_week = status.get('has_week') and status.get('week_status') == 'active'
+
+    # Формируем текст
+    text = "✅ *Режим Лента активирован!*\n\n"
+    text += f"*Ваши настройки:*\n{settings_text}\n"
+
+    if has_active_week:
+        topics = status.get('topics', [])
+        if topics:
+            text += "\n*Ваши темы:*\n"
+            for i, topic in enumerate(topics, 1):
+                text += f"{i}. {topic}\n"
+
+    if marathon_paused:
+        text += "\n_Марафон на паузе. Вернуться: /mode_"
+
+    # Кнопки
+    buttons = []
+
+    if has_active_week:
+        buttons.append([InlineKeyboardButton(
+            text=f"📖 {t('buttons.get_digest', lang)}",
+            callback_data="feed_get_digest"
+        )])
+        buttons.append([InlineKeyboardButton(
+            text=f"📋 {t('buttons.topics_menu', lang)}",
+            callback_data="feed_topics_menu"
+        )])
+    else:
+        buttons.append([InlineKeyboardButton(
+            text=f"📚 {t('buttons.select_topics', lang)}",
+            callback_data="feed_start_topics"
+        )])
+
+    buttons.append([InlineKeyboardButton(text="📝 Обновить данные", callback_data="feed_go_update")])
+    buttons.append([InlineKeyboardButton(text="⏰ Напоминания", callback_data="feed_reminders_input")])
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    if edit:
+        await message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+    else:
+        await message.answer(text, reply_markup=keyboard, parse_mode="Markdown")
+
+
 @mode_router.callback_query(F.data == "marathon_continue")
 async def marathon_continue(callback: CallbackQuery):
     """Продолжить марафон"""
@@ -456,6 +513,11 @@ async def on_marathon_time_input(message: Message, state: FSMContext):
     schedule_time_2 = valid_times[1] if len(valid_times) > 1 else None
 
     await update_intern(chat_id, schedule_time=schedule_time, schedule_time_2=schedule_time_2)
+
+    # Получаем данные состояния для определения куда возвращаться
+    state_data = await state.get_data()
+    return_to = state_data.get('return_to', 'marathon')
+
     await state.clear()
 
     # Показываем подтверждение
@@ -466,9 +528,14 @@ async def on_marathon_time_input(message: Message, state: FSMContext):
 
     await message.answer(confirm_text)
 
-    # Возвращаемся к экрану марафона
+    # Возвращаемся к нужному экрану
     intern = await get_intern(chat_id)
-    await show_marathon_activated(message, intern, feed_paused=False, edit=False)
+    if return_to == 'feed':
+        # Показываем экран Ленты
+        await show_feed_activated(message, intern)
+    else:
+        # Показываем экран Марафона
+        await show_marathon_activated(message, intern, feed_paused=False, edit=False)
 
 
 # ==================== НАСТРОЙКА НАПОМИНАНИЙ ====================
@@ -697,25 +764,29 @@ async def select_feed(callback: CallbackQuery):
             )
 
         # Кнопки в зависимости от наличия активной недели
+        buttons = []
+
         if has_active_week:
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(
-                    text=f"📖 {t('buttons.get_digest', lang)}",
-                    callback_data="feed_get_digest"
-                )],
-                [InlineKeyboardButton(
-                    text=f"📋 {t('buttons.topics_menu', lang)}",
-                    callback_data="feed_topics_menu"
-                )]
-            ])
+            buttons.append([InlineKeyboardButton(
+                text=f"📖 {t('buttons.get_digest', lang)}",
+                callback_data="feed_get_digest"
+            )])
+            buttons.append([InlineKeyboardButton(
+                text=f"📋 {t('buttons.topics_menu', lang)}",
+                callback_data="feed_topics_menu"
+            )])
         else:
             # Нет активной недели — кнопка для выбора тем
-            keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(
-                    text=f"📚 {t('buttons.select_topics', lang)}",
-                    callback_data="feed_start_topics"
-                )]
-            ])
+            buttons.append([InlineKeyboardButton(
+                text=f"📚 {t('buttons.select_topics', lang)}",
+                callback_data="feed_start_topics"
+            )])
+
+        # Общие кнопки настроек
+        buttons.append([InlineKeyboardButton(text="📝 Обновить данные", callback_data="feed_go_update")])
+        buttons.append([InlineKeyboardButton(text="⏰ Напоминания", callback_data="feed_reminders_input")])
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
         await callback.answer()
@@ -724,6 +795,56 @@ async def select_feed(callback: CallbackQuery):
         import traceback
         logger.error(f"Ошибка в select_feed: {e}\n{traceback.format_exc()}")
         await callback.answer("Произошла ошибка. Попробуйте ещё раз.", show_alert=True)
+
+
+# ==================== КНОПКИ ЛЕНТЫ ====================
+
+@mode_router.callback_query(F.data == "feed_go_update")
+async def feed_go_update(callback: CallbackQuery):
+    """Переход к обновлению профиля из Ленты"""
+    from bot import cmd_update
+    await callback.message.delete()
+    await cmd_update(callback.message)
+    await callback.answer()
+
+
+@mode_router.callback_query(F.data == "feed_reminders_input")
+async def feed_reminders_input(callback: CallbackQuery, state: FSMContext):
+    """Запрос ввода времени напоминаний для Ленты"""
+    chat_id = callback.message.chat.id
+    intern = await get_intern(chat_id)
+
+    schedule_time = intern.get('schedule_time', '09:00')
+    schedule_time_2 = intern.get('schedule_time_2')
+
+    text = "⏰ *Напоминания*\n\n"
+    text += f"Сейчас: {schedule_time}"
+    if schedule_time_2:
+        text += f", {schedule_time_2}"
+    text += "\n\n"
+    text += "Введите время в формате ЧЧ:ММ\n"
+    text += "Например: `07:30` или `18:00`\n\n"
+    text += "_Для двух напоминаний введите через запятую:_\n"
+    text += "_Например: `07:00, 19:00`_"
+
+    # Устанавливаем FSM-состояние (используем то же что и для марафона)
+    await state.set_state(MarathonSettingsStates.waiting_for_time)
+    # Сохраняем что это для ленты
+    await state.update_data(return_to='feed')
+
+    buttons = [[InlineKeyboardButton(text="« Назад", callback_data="feed_cancel_input")]]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+    await callback.answer()
+
+
+@mode_router.callback_query(F.data == "feed_cancel_input")
+async def feed_cancel_input(callback: CallbackQuery, state: FSMContext):
+    """Отмена ввода времени для Ленты"""
+    await state.clear()
+    # Возвращаемся к выбору режима — вызываем select_feed
+    await select_feed(callback)
 
 
 def get_mode_name(mode: str) -> str:
@@ -786,13 +907,17 @@ def get_complexity_name(level: int) -> str:
 
 
 def get_user_settings_text(intern: dict) -> str:
-    """Формирует текст с настройками пользователя для Ленты"""
+    """Формирует текст с настройками пользователя"""
     schedule_time = intern.get('schedule_time', '09:00')
+    schedule_time_2 = intern.get('schedule_time_2')
     study_duration = intern.get('study_duration', 15)
     complexity = intern.get('complexity_level') or intern.get('bloom_level', 1)
 
-    return (
-        f"⏰ Время: {schedule_time}\n"
-        f"📖 На чтение: {study_duration} мин\n"
-        f"📊 Сложность: {get_complexity_name(complexity)}"
-    )
+    text = f"⏰ Время: {schedule_time}\n"
+    text += f"📖 На чтение: {study_duration} мин\n"
+    text += f"📊 Сложность: {get_complexity_name(complexity)}"
+
+    if schedule_time_2:
+        text += f"\n⏰ Доп.напоминание: {schedule_time_2}"
+
+    return text
