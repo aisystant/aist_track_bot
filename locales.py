@@ -22,6 +22,7 @@ TRANSLATIONS = {
         'commands.progress': '/progress — мой прогресс',
         'commands.profile': '/profile — мой профиль',
         'commands.update': '/update — обновить настройки',
+        'commands.mode': '/mode — выбрать режим',
         'commands.language': '/language — сменить язык',
         'commands.help': '/help — справка',
 
@@ -263,6 +264,7 @@ TRANSLATIONS = {
         'commands.progress': '/progress — my progress',
         'commands.profile': '/profile — my profile',
         'commands.update': '/update — update settings',
+        'commands.mode': '/mode — select mode',
         'commands.language': '/language — change language',
         'commands.help': '/help — help',
 
@@ -504,6 +506,7 @@ TRANSLATIONS = {
         'commands.progress': '/progress — mi progreso',
         'commands.profile': '/profile — mi perfil',
         'commands.update': '/update — actualizar ajustes',
+        'commands.mode': '/mode — seleccionar modo',
         'commands.language': '/language — cambiar idioma',
         'commands.help': '/help — ayuda',
 
