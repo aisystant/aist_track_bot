@@ -145,6 +145,33 @@ async def get_feed_session(week_id: int, session_date: date) -> Optional[dict]:
         return None
 
 
+async def get_incomplete_feed_session(week_id: int) -> Optional[dict]:
+    """Получить незавершённую сессию (status != 'completed') для недели"""
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            '''SELECT * FROM feed_sessions
+               WHERE week_id = $1 AND status != 'completed'
+               ORDER BY session_date DESC
+               LIMIT 1''',
+            week_id
+        )
+
+        if row:
+            return {
+                'id': row['id'],
+                'week_id': row['week_id'],
+                'day_number': row['day_number'],
+                'topic_title': row['topic_title'],
+                'content': json.loads(row['content']) if row['content'] else {},
+                'fixation_text': row.get('fixation_text', ''),
+                'session_date': row['session_date'],
+                'status': row['status'],
+                'completed_at': row.get('completed_at'),
+            }
+        return None
+
+
 async def get_feed_history(chat_id: int, limit: int = 20) -> List[dict]:
     """Получить историю сессий Ленты"""
     pool = await get_pool()
