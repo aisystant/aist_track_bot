@@ -1308,17 +1308,17 @@ def kb_bloom_level() -> InlineKeyboardMarkup:
         for k, v in BLOOM_LEVELS.items()
     ])
 
-def kb_bonus_question() -> InlineKeyboardMarkup:
+def kb_bonus_question(lang: str = 'ru') -> InlineKeyboardMarkup:
     """Клавиатура для предложения дополнительного вопроса"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🚀 Да, давай сложнее!", callback_data="bonus_yes")],
-        [InlineKeyboardButton(text="✅ Достаточно", callback_data="bonus_no")]
+        [InlineKeyboardButton(text=t('buttons.bonus_yes', lang), callback_data="bonus_yes")],
+        [InlineKeyboardButton(text=t('buttons.bonus_no', lang), callback_data="bonus_no")]
     ])
 
-def kb_skip_topic() -> InlineKeyboardMarkup:
+def kb_skip_topic(lang: str = 'ru') -> InlineKeyboardMarkup:
     """Клавиатура с кнопкой пропуска темы"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⏭ Пропустить тему", callback_data="skip_topic")]
+        [InlineKeyboardButton(text=t('buttons.skip_topic', lang), callback_data="skip_topic")]
     ])
 
 def kb_marathon_start(lang: str = 'ru') -> InlineKeyboardMarkup:
@@ -1341,10 +1341,10 @@ def kb_marathon_start(lang: str = 'ru') -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text=f"📅 {names[2]} ({day_after.strftime('%d.%m')})", callback_data="start_day_after")]
     ])
 
-def kb_submit_work_product() -> InlineKeyboardMarkup:
+def kb_submit_work_product(lang: str = 'ru') -> InlineKeyboardMarkup:
     """Клавиатура для практического задания"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⏭ Пропустить задание", callback_data="skip_practice")]
+        [InlineKeyboardButton(text=t('buttons.skip_practice', lang), callback_data="skip_practice")]
     ])
 
 def kb_language_select() -> InlineKeyboardMarkup:
@@ -1777,7 +1777,7 @@ async def cmd_update(message: Message, state: FSMContext):
         f"🎯 {goals_short}\n\n"
         f"{duration.get('emoji', '')} {duration.get('name', '')}\n"
         f"{bloom['emoji']} {bloom['short_name']}\n"
-        f"🗓 {marathon_start_str} ({t('progress.day', lang, n=marathon_day)})\n"
+        f"🗓 {marathon_start_str} ({t('progress.day', lang, day=marathon_day, total=14)})\n"
         f"⏰ {intern['schedule_time']}\n"
         f"🌐 {get_language_name(lang)}\n\n"
         f"*{t('settings.what_to_change', lang)}*",
@@ -2167,6 +2167,7 @@ async def on_answer(message: Message, state: FSMContext):
         next_topic_hint = f"\n\n📚 *Следующая тема:* {next_topic['title']}"
 
     # Если уровень ниже максимального — предлагаем дополнительный вопрос
+    lang = intern.get('language', 'ru')
     if intern['bloom_level'] < 3:
         # Сохраняем индекс темы в state для бонусного вопроса
         await state.update_data(topic_index=intern['current_topic_index'])
@@ -2177,7 +2178,7 @@ async def on_answer(message: Message, state: FSMContext):
             f"{bloom['short_name']}{upgrade_msg}{next_topic_hint}\n\n"
             f"Хотите дополнительный вопрос посложнее?",
             parse_mode="Markdown",
-            reply_markup=kb_bonus_question()
+            reply_markup=kb_bonus_question(lang)
         )
         # Не очищаем state — ждём выбора
     else:
@@ -2512,6 +2513,7 @@ async def send_theory_topic(chat_id: int, topic: dict, intern: dict, state: FSMC
         await bot.send_message(chat_id, full, parse_mode="Markdown")
 
     # Вопрос отдельным сообщением
+    lang = intern.get('language', 'ru')
     await bot.send_message(
         chat_id,
         f"💭 *Вопрос для размышления* ({bloom['short_name']})\n\n"
@@ -2519,7 +2521,7 @@ async def send_theory_topic(chat_id: int, topic: dict, intern: dict, state: FSMC
         f"_Напишите ответ в сообщении. Он не проверяется — "
         f"после получения любого ответа тема считается пройденной._",
         parse_mode="Markdown",
-        reply_markup=kb_skip_topic()
+        reply_markup=kb_skip_topic(lang)
     )
 
     await state.set_state(LearningStates.waiting_for_answer)
@@ -2562,6 +2564,7 @@ async def send_practice_topic(chat_id: int, topic: dict, intern: dict, state: FS
         await bot.send_message(chat_id, full, parse_mode="Markdown")
 
     # Запрос рабочего продукта
+    lang = intern.get('language', 'ru')
     await bot.send_message(
         chat_id,
         "📝 *Когда выполните задание:*\n\n"
@@ -2569,7 +2572,7 @@ async def send_practice_topic(chat_id: int, topic: dict, intern: dict, state: FS
         f"_Например: «{examples[0] if examples else work_product}»_\n\n"
         "_Проверки нет — просто напишите, что сделали, и задание засчитается._",
         parse_mode="Markdown",
-        reply_markup=kb_submit_work_product()
+        reply_markup=kb_submit_work_product(lang)
     )
 
     await state.set_state(LearningStates.waiting_for_work_product)

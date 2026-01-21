@@ -63,6 +63,13 @@ TRANSLATIONS = {
         'buttons.start_now': 'Начать сейчас',
         'buttons.start_scheduled': 'По расписанию',
         'buttons.change_language': 'Сменить язык',
+        'buttons.bonus_yes': '🚀 Да, давай сложнее!',
+        'buttons.bonus_no': '✅ Достаточно',
+        'buttons.skip_topic': '⏭ Пропустить тему',
+        'buttons.skip_practice': '⏭ Пропустить практику',
+        'buttons.start_today': '🚀 Начать сегодня',
+        'buttons.start_tomorrow': '📅 Завтра',
+        'buttons.start_day_after': '📅 Послезавтра',
 
         # Кнопки профиля
         'buttons.name': 'Имя',
@@ -229,6 +236,13 @@ TRANSLATIONS = {
         'buttons.start_now': 'Start now',
         'buttons.start_scheduled': 'Scheduled',
         'buttons.change_language': 'Change language',
+        'buttons.bonus_yes': '🚀 Yes, let\'s go harder!',
+        'buttons.bonus_no': '✅ Enough',
+        'buttons.skip_topic': '⏭ Skip topic',
+        'buttons.skip_practice': '⏭ Skip practice',
+        'buttons.start_today': '🚀 Start today',
+        'buttons.start_tomorrow': '📅 Tomorrow',
+        'buttons.start_day_after': '📅 Day after',
 
         # Profile buttons
         'buttons.name': 'Name',
@@ -395,6 +409,13 @@ TRANSLATIONS = {
         'buttons.start_now': 'Empezar ahora',
         'buttons.start_scheduled': 'Programado',
         'buttons.change_language': 'Cambiar idioma',
+        'buttons.bonus_yes': '🚀 ¡Sí, más difícil!',
+        'buttons.bonus_no': '✅ Suficiente',
+        'buttons.skip_topic': '⏭ Saltar tema',
+        'buttons.skip_practice': '⏭ Saltar práctica',
+        'buttons.start_today': '🚀 Empezar hoy',
+        'buttons.start_tomorrow': '📅 Mañana',
+        'buttons.start_day_after': '📅 Pasado mañana',
 
         # Botones de perfil
         'buttons.name': 'Nombre',
