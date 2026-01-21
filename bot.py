@@ -37,7 +37,7 @@ import asyncpg
 
 from locales import t, detect_language, get_language_name, SUPPORTED_LANGUAGES
 from core.intent import detect_intent, IntentType
-from engines.shared import handle_question
+from engines.shared import handle_question, ProcessingStage
 
 # ============= КОНФИГУРАЦИЯ =============
 
@@ -139,41 +139,8 @@ MAX_TOPICS_PER_DAY = 4  # макс тем в день (нагнать 1 день
 MARATHON_DAYS = 14  # длительность марафона
 
 # ============= ОНТОЛОГИЧЕСКИЕ ИНВАРИАНТЫ =============
-# Эти правила имеют приоритет над разговорными формулировками.
-# Claude должен автоматически исправлять нарушения.
-
-ONTOLOGY_RULES = """
-ОНТОЛОГИЧЕСКИЙ КОНТРОЛЬ (обязателен для всего контента):
-
-1) СИСТЕМА — это вещь (объект с элементами и связями), а НЕ процесс, метод или абстракция.
-   ЗАПРЕЩЕНО: «система привычек», «система мышления», «система обучения», «система развития».
-   КОРРЕКТНО: набор практик, метод обучения, процесс развития.
-
-2) РАБОЧИЙ ПРОДУКТ — материально зафиксированный артефакт (можно увидеть, передать, хранить).
-   Формулируется СУЩЕСТВИТЕЛЬНЫМ.
-   ЗАПРЕЩЕНО как РП: «сделать», «внедрить», «улучшить», «повысить».
-   КОРРЕКТНО: чек-лист, схема, текст поста, таблица, список.
-
-3) ЦЕЛЬ — изменение состояния системы, а НЕ средство и НЕ действие.
-   ИИ, CRM, методологии — это СРЕДСТВА, не цели.
-   ЗАПРЕЩЕНО: «внедрить ИИ» как цель.
-   КОРРЕКТНО: «сократить время на X» (цель), «используя ИИ» (средство).
-
-4) ФУНКЦИЯ ≠ ЭЛЕМЕНТ.
-   Функция — «что делает система». Элемент — «чем/кем делается».
-   ЗАПРЕЩЕНО: отождествлять функцию с человеком или отделом.
-
-5) РОЛЬ ≠ ЧЕЛОВЕК.
-   Роль — функциональная позиция (за ней метод и РП). Человек — носитель ролей.
-   ЗАПРЕЩЕНО: «Петя = менеджер» (Петя исполняет роль менеджера).
-
-6) ПРОБЛЕМА ≠ СИМПТОМ.
-   «Не хватает времени» — симптом. Проблема — структурное несоответствие.
-   ЗАПРЕЩЕНО: называть симптомы проблемами.
-
-7) СОСТОЯНИЕ ≠ ПРОЦЕСС.
-   Обучение, развитие — процессы. Их результаты — состояния или артефакты.
-"""
+# Импортируем из config — единый источник истины
+from config import ONTOLOGY_RULES
 
 # ============= ЗАГРУЗКА МЕТАДАННЫХ ТЕМ =============
 
@@ -886,9 +853,11 @@ class ClaudeClient:
 Выдай ТОЛЬКО сам вопрос — 1-3 предложения максимум.
 
 КОНТЕКСТ ВОПРОСА (День {marathon_day}): {question_context}
-Уровень сложности: {bloom['name']} — {bloom['desc']}
+Уровень сложности: {bloom['short_name']} — {bloom['desc']}
 {question_type_hint}
-{templates_hint}"""
+{templates_hint}
+
+{ONTOLOGY_RULES}"""
 
         user_prompt = f"""Тема: {topic.get('title')}
 Понятие: {topic.get('main_concept')}
@@ -1251,22 +1220,28 @@ def get_next_topic_index(intern: dict) -> Optional[int]:
 
 # ============= КЛАВИАТУРЫ =============
 
-def kb_experience() -> InlineKeyboardMarkup:
+def kb_experience(lang: str = 'ru') -> InlineKeyboardMarkup:
+    emojis = {'student': '🎓', 'junior': '🌱', 'middle': '💼', 'senior': '⭐', 'switching': '🔄'}
+    keys = ['student', 'junior', 'middle', 'senior', 'switching']
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"{v['emoji']} {v['name']}", callback_data=f"exp_{k}")]
-        for k, v in EXPERIENCE_LEVELS.items()
+        [InlineKeyboardButton(text=f"{emojis[k]} {t(f'experience.{k}', lang)}", callback_data=f"exp_{k}")]
+        for k in keys
     ])
 
-def kb_difficulty() -> InlineKeyboardMarkup:
+def kb_difficulty(lang: str = 'ru') -> InlineKeyboardMarkup:
+    emojis = {'easy': '🌱', 'medium': '🌿', 'hard': '🌳'}
+    keys = ['easy', 'medium', 'hard']
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"{v['emoji']} {v['name']}", callback_data=f"diff_{k}")]
-        for k, v in DIFFICULTY_LEVELS.items()
+        [InlineKeyboardButton(text=f"{emojis[k]} {t(f'difficulty.{k}', lang)}", callback_data=f"diff_{k}")]
+        for k in keys
     ])
 
-def kb_learning_style() -> InlineKeyboardMarkup:
+def kb_learning_style(lang: str = 'ru') -> InlineKeyboardMarkup:
+    emojis = {'theoretical': '📚', 'practical': '🔧', 'mixed': '⚖️'}
+    keys = ['theoretical', 'practical', 'mixed']
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f"{v['emoji']} {v['name']}", callback_data=f"style_{k}")]
-        for k, v in LEARNING_STYLES.items()
+        [InlineKeyboardButton(text=f"{emojis[k]} {t(f'learning_style.{k}', lang)}", callback_data=f"style_{k}")]
+        for k in keys
     ])
 
 def kb_study_duration(lang: str = 'ru') -> InlineKeyboardMarkup:
@@ -1303,27 +1278,28 @@ def kb_update_profile(lang: str = 'ru') -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="❌ " + t('buttons.cancel', lang), callback_data="upd_cancel")]
     ])
 
-def kb_bloom_level() -> InlineKeyboardMarkup:
+def kb_bloom_level(lang: str = 'ru') -> InlineKeyboardMarkup:
     """Клавиатура для выбора уровня сложности"""
+    emojis = {1: '🔵', 2: '🟡', 3: '🔴'}
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=f"{v['emoji']} {v['short_name']} «{v['name']}»",
+            text=f"{emojis[k]} {t(f'bloom.level_{k}_short', lang)} — {t(f'bloom.level_{k}_desc', lang)}",
             callback_data=f"bloom_{k}"
         )]
-        for k, v in BLOOM_LEVELS.items()
+        for k in [1, 2, 3]
     ])
 
-def kb_bonus_question() -> InlineKeyboardMarkup:
+def kb_bonus_question(lang: str = 'ru') -> InlineKeyboardMarkup:
     """Клавиатура для предложения дополнительного вопроса"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🚀 Да, давай сложнее!", callback_data="bonus_yes")],
-        [InlineKeyboardButton(text="✅ Достаточно", callback_data="bonus_no")]
+        [InlineKeyboardButton(text=t('buttons.bonus_yes', lang), callback_data="bonus_yes")],
+        [InlineKeyboardButton(text=t('buttons.bonus_no', lang), callback_data="bonus_no")]
     ])
 
-def kb_skip_topic() -> InlineKeyboardMarkup:
+def kb_skip_topic(lang: str = 'ru') -> InlineKeyboardMarkup:
     """Клавиатура с кнопкой пропуска темы"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⏭ Пропустить тему", callback_data="skip_topic")]
+        [InlineKeyboardButton(text=t('buttons.skip_topic', lang), callback_data="skip_topic")]
     ])
 
 def kb_marathon_start(lang: str = 'ru') -> InlineKeyboardMarkup:
@@ -1346,10 +1322,10 @@ def kb_marathon_start(lang: str = 'ru') -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text=f"📅 {names[2]} ({day_after.strftime('%d.%m')})", callback_data="start_day_after")]
     ])
 
-def kb_submit_work_product() -> InlineKeyboardMarkup:
+def kb_submit_work_product(lang: str = 'ru') -> InlineKeyboardMarkup:
     """Клавиатура для практического задания"""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⏭ Пропустить задание", callback_data="skip_practice")]
+        [InlineKeyboardButton(text=t('buttons.skip_practice', lang), callback_data="skip_practice")]
     ])
 
 def kb_language_select() -> InlineKeyboardMarkup:
@@ -1814,8 +1790,9 @@ async def cmd_profile(message: Message):
         await message.answer(t('profile.first_start', lang))
         return
 
-    duration = STUDY_DURATIONS.get(str(intern['study_duration']), {})
-    bloom = BLOOM_LEVELS.get(intern['bloom_level'], BLOOM_LEVELS[1])
+    study_duration = intern['study_duration']
+    bloom_level = intern['bloom_level']
+    bloom_emojis = {1: '🔵', 2: '🟡', 3: '🔴'}
 
     interests_str = ', '.join(intern['interests']) if intern['interests'] else t('profile.not_specified', lang)
     motivation_short = intern['motivation'][:100] + '...' if len(intern.get('motivation', '')) > 100 else intern.get('motivation', '')
@@ -1827,8 +1804,8 @@ async def cmd_profile(message: Message):
         f"🎨 {interests_str}\n\n"
         f"💫 *{t('profile.what_important', lang)}:* {motivation_short or t('profile.not_specified', lang)}\n"
         f"🎯 *{t('profile.what_change', lang)}:* {goals_short}\n\n"
-        f"{duration.get('emoji', '')} {duration.get('name', '')}\n"
-        f"{bloom['emoji']} {bloom['short_name']} «{bloom['name']}»\n"
+        f"{t(f'duration.minutes_{study_duration}', lang)}\n"
+        f"{bloom_emojis.get(bloom_level, '🔵')} {t(f'bloom.level_{bloom_level}_short', lang)}\n"
         f"⏰ {t('profile.reminder_at', lang)} {intern['schedule_time']}\n"
         f"🌐 {get_language_name(lang)}\n\n"
         f"🆔 `{message.chat.id}`\n\n"
@@ -1884,8 +1861,9 @@ async def cmd_update(message: Message, state: FSMContext):
         await message.answer(t('errors.try_again', lang) + " /start")
         return
 
-    duration = STUDY_DURATIONS.get(str(intern['study_duration']), {})
-    bloom = BLOOM_LEVELS.get(intern['bloom_level'], BLOOM_LEVELS[1])
+    study_duration = intern['study_duration']
+    bloom_level = intern['bloom_level']
+    bloom_emojis = {1: '🔵', 2: '🟡', 3: '🔴'}
 
     # Получаем дату старта марафона
     start_date = intern.get('marathon_start_date')
@@ -1908,9 +1886,9 @@ async def cmd_update(message: Message, state: FSMContext):
         f"🎨 {interests_str}\n\n"
         f"💫 {motivation_short}\n"
         f"🎯 {goals_short}\n\n"
-        f"{duration.get('emoji', '')} {duration.get('name', '')}\n"
-        f"{bloom['emoji']} {bloom['short_name']}\n"
-        f"🗓 {marathon_start_str} ({t('progress.day', lang, n=marathon_day)})\n"
+        f"{t(f'duration.minutes_{study_duration}', lang)}\n"
+        f"{bloom_emojis.get(bloom_level, '🔵')} {t(f'bloom.level_{bloom_level}_short', lang)}\n"
+        f"🗓 {marathon_start_str} ({t('progress.day', lang, day=marathon_day, total=14)})\n"
         f"⏰ {intern['schedule_time']}\n"
         f"🌐 {get_language_name(lang)}\n\n"
         f"*{t('settings.what_to_change', lang)}*",
@@ -2009,14 +1987,16 @@ async def on_upd_schedule(callback: CallbackQuery, state: FSMContext):
 async def on_upd_bloom(callback: CallbackQuery, state: FSMContext):
     intern = await get_intern(callback.message.chat.id)
     lang = intern.get('language', 'ru')
-    bloom = BLOOM_LEVELS.get(intern['bloom_level'], BLOOM_LEVELS[1])
+    level = intern['bloom_level']
+    emojis = {1: '🔵', 2: '🟡', 3: '🔴'}
     await callback.answer()
     await callback.message.edit_text(
-        f"🎚 *{t('update.current_difficulty', lang)}:* {bloom['emoji']} {bloom['short_name']} «{bloom['name']}»\n"
-        f"_{bloom['desc']}_\n\n"
+        f"🎚 *{t('update.current_difficulty', lang)}:* {emojis.get(level, '🔵')} {t(f'bloom.level_{level}_short', lang)}\n"
+        f"_{t(f'bloom.level_{level}_desc', lang)}_\n\n"
+        f"📊 *{t('update.difficulty_scale', lang)}:* 1 — {t('update.easiest', lang)}, 3 — {t('update.hardest', lang)}\n\n"
         f"{t('update.select_difficulty', lang)}",
         parse_mode="Markdown",
-        reply_markup=kb_bloom_level()
+        reply_markup=kb_bloom_level(lang)
     )
     await state.set_state(UpdateStates.updating_bloom_level)
 
@@ -2025,14 +2005,15 @@ async def on_save_bloom(callback: CallbackQuery, state: FSMContext):
     level = int(callback.data.replace("bloom_", ""))
     await update_intern(callback.message.chat.id, bloom_level=level, topics_at_current_bloom=0)
 
-    bloom = BLOOM_LEVELS.get(level, BLOOM_LEVELS[1])
-    await callback.answer(f"Уровень: {bloom['short_name']}")
+    intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru') if intern else 'ru'
+    await callback.answer(f"{t(f'bloom.level_{level}_short', lang)}")
     await callback.message.edit_text(
-        f"✅ Уровень сложности изменён на *{bloom['short_name']} «{bloom['name']}»*!\n\n"
-        f"{bloom['desc']}\n\n"
-        f"/learn — продолжить обучение\n"
-        f"/mode — выбрать режим\n"
-        f"/update — обновить ещё что-то",
+        f"✅ {t('update.difficulty_changed', lang)}: *{t(f'bloom.level_{level}_short', lang)}*!\n\n"
+        f"{t(f'bloom.level_{level}_desc', lang)}\n\n"
+        f"{t('commands.learn', lang)}\n"
+        f"{t('commands.mode', lang)}\n"
+        f"{t('commands.update', lang)}",
         parse_mode="Markdown"
     )
     await state.clear()
@@ -2279,12 +2260,12 @@ async def on_answer(message: Message, state: FSMContext):
 
     done = len(completed)
     total = get_total_topics()
-    bloom = BLOOM_LEVELS.get(bloom_level, BLOOM_LEVELS[1])
+    lang = intern.get('language', 'ru')
 
     # Сообщение о повышении уровня
     upgrade_msg = ""
     if level_upgraded:
-        upgrade_msg = f"\n\n🎉 *Поздравляем!* Вы перешли на *{bloom['short_name']} «{bloom['name']}»*!"
+        upgrade_msg = f"\n\n🎉 *{t('marathon.level_up', lang)}* *{t(f'bloom.level_{bloom_level}_short', lang)}*!"
 
     # Получаем информацию о следующей доступной теме
     updated_intern = {
@@ -2298,7 +2279,7 @@ async def on_answer(message: Message, state: FSMContext):
     next_topic_hint = ""
     if next_available:
         next_topic = next_available[0][1]  # (index, topic) -> topic
-        next_topic_hint = f"\n\n📚 *Следующая тема:* {next_topic['title']}"
+        next_topic_hint = f"\n\n📚 *{t('marathon.next_topic', lang)}:* {next_topic['title']}"
 
     # Если уровень ниже максимального — предлагаем дополнительный вопрос
     if intern['bloom_level'] < 3:
@@ -2306,20 +2287,20 @@ async def on_answer(message: Message, state: FSMContext):
         await state.update_data(topic_index=intern['current_topic_index'])
 
         await message.answer(
-            f"✅ *Тема засчитана!*\n\n"
+            f"✅ *{t('marathon.topic_completed', lang)}*\n\n"
             f"{progress_bar(done, total)}\n"
-            f"{bloom['short_name']}{upgrade_msg}{next_topic_hint}\n\n"
-            f"Хотите дополнительный вопрос посложнее?",
+            f"{t(f'bloom.level_{bloom_level}_short', lang)}{upgrade_msg}{next_topic_hint}\n\n"
+            f"{t('marathon.want_harder', lang)}",
             parse_mode="Markdown",
-            reply_markup=kb_bonus_question()
+            reply_markup=kb_bonus_question(lang)
         )
         # Не очищаем state — ждём выбора
     else:
         await message.answer(
-            f"✅ *Тема засчитана!*\n\n"
+            f"✅ *{t('marathon.topic_completed', lang)}*\n\n"
             f"{progress_bar(done, total)}\n"
-            f"{bloom['short_name']}{upgrade_msg}{next_topic_hint}\n\n"
-            f"/learn — следующая тема",
+            f"{t(f'bloom.level_{bloom_level}_short', lang)}{upgrade_msg}{next_topic_hint}\n\n"
+            f"{t('marathon.next_command', lang)}",
             parse_mode="Markdown"
         )
         await state.clear()
@@ -2340,19 +2321,18 @@ async def on_bonus_yes(callback: CallbackQuery, state: FSMContext):
         await state.clear()
         return
 
-    await callback.message.edit_text("⏳ Генерирую вопрос посложнее...")
+    lang = intern.get('language', 'ru')
+    await callback.message.edit_text(f"⏳ {t('marathon.generating_harder', lang)}")
 
     # Генерируем вопрос следующего уровня
     marathon_day = get_marathon_day(intern)
     next_level = min(intern['bloom_level'] + 1, 3)
     question = await claude.generate_question(topic, intern, marathon_day=marathon_day, bloom_level=next_level)
 
-    bloom = BLOOM_LEVELS.get(next_level, BLOOM_LEVELS[1])
-
     await callback.message.answer(
-        f"🚀 *Бонусный вопрос* ({bloom['short_name']})\n\n"
+        f"🚀 *{t('marathon.bonus_question', lang)}* ({t(f'bloom.level_{next_level}_short', lang)})\n\n"
         f"{question}\n\n"
-        f"Напишите ответ 👇",
+        f"{t('marathon.write_answer', lang)}",
         parse_mode="Markdown"
     )
     await state.set_state(LearningStates.waiting_for_bonus_answer)
@@ -2360,9 +2340,11 @@ async def on_bonus_yes(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data == "bonus_no")
 async def on_bonus_no(callback: CallbackQuery, state: FSMContext):
     """Пользователь отказался от дополнительного вопроса"""
-    await callback.answer("Хорошо!")
+    intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru') if intern else 'ru'
+    await callback.answer(t('marathon.ok', lang))
     await callback.message.edit_text(
-        callback.message.text + "\n\n/learn — следующая тема",
+        callback.message.text + f"\n\n{t('marathon.next_command', lang)}",
         parse_mode="Markdown"
     )
     await state.clear()
@@ -2381,19 +2363,20 @@ async def on_bonus_answer(message: Message, state: FSMContext):
     # Сохраняем ответ на бонусный вопрос
     await save_answer(message.chat.id, topic_index, f"[BONUS] {message.text.strip()}")
 
-    bloom = BLOOM_LEVELS.get(intern['bloom_level'], BLOOM_LEVELS[1])
+    lang = intern.get('language', 'ru')
+    bloom_level = intern['bloom_level']
 
     # Получаем информацию о следующей доступной теме
     next_available = get_available_topics(intern)
     next_topic_hint = ""
     if next_available:
         next_topic = next_available[0][1]  # (index, topic) -> topic
-        next_topic_hint = f"\n\n📚 *Следующая тема:* {next_topic['title']}"
+        next_topic_hint = f"\n\n📚 *{t('marathon.next_topic', lang)}:* {next_topic['title']}"
 
     await message.answer(
-        f"🌟 *Отлично!* Бонусный вопрос засчитан!\n\n"
-        f"Вы тренируете навыки *{bloom['short_name']}* и выше.{next_topic_hint}\n\n"
-        f"/learn — следующая тема",
+        f"🌟 *{t('marathon.bonus_completed', lang)}*\n\n"
+        f"{t('marathon.training_skills', lang)} *{t(f'bloom.level_{bloom_level}_short', lang)}* {t('marathon.and_higher', lang)}{next_topic_hint}\n\n"
+        f"{t('marathon.next_command', lang)}",
         parse_mode="Markdown"
     )
     await state.clear()
@@ -2622,19 +2605,20 @@ async def send_topic(chat_id: int, state: FSMContext, bot: Bot):
 async def send_theory_topic(chat_id: int, topic: dict, intern: dict, state: FSMContext, bot: Bot):
     """Отправка теоретической темы"""
     marathon_day = get_marathon_day(intern)
-    bloom = BLOOM_LEVELS.get(intern['bloom_level'], BLOOM_LEVELS[1])
+    lang = intern.get('language', 'ru')
+    bloom_level = intern['bloom_level']
 
     # Показываем, что бот работает
     await bot.send_chat_action(chat_id=chat_id, action="typing")
-    await bot.send_message(chat_id, "⏳ Генерирую персональный материал...")
+    await bot.send_message(chat_id, f"⏳ {t('marathon.generating_material', lang)}")
 
     content = await claude.generate_content(topic, intern, marathon_day=marathon_day, mcp_client=mcp_guides, knowledge_client=mcp_knowledge)
     question = await claude.generate_question(topic, intern, marathon_day=marathon_day)
 
     header = (
-        f"📚 *День {marathon_day} — Теория*\n"
+        f"📚 *{t('marathon.day_theory', lang, day=marathon_day)}*\n"
         f"*{topic['title']}*\n"
-        f"⏱ {intern['study_duration']} минут\n\n"
+        f"⏱ {t('marathon.minutes', lang, minutes=intern['study_duration'])}\n\n"
     )
 
     full = header + content
@@ -2648,12 +2632,11 @@ async def send_theory_topic(chat_id: int, topic: dict, intern: dict, state: FSMC
     # Вопрос отдельным сообщением
     await bot.send_message(
         chat_id,
-        f"💭 *Вопрос для размышления* ({bloom['short_name']})\n\n"
+        f"💭 *{t('marathon.reflection_question', lang)}* ({t(f'bloom.level_{bloom_level}_short', lang)})\n\n"
         f"{question}\n\n"
-        f"_Напишите ответ в сообщении. Он не проверяется — "
-        f"после получения любого ответа тема считается пройденной._",
+        f"_{t('marathon.answer_hint', lang)}_",
         parse_mode="Markdown",
-        reply_markup=kb_skip_topic()
+        reply_markup=kb_skip_topic(lang)
     )
 
     await state.set_state(LearningStates.waiting_for_answer)
@@ -2662,10 +2645,11 @@ async def send_theory_topic(chat_id: int, topic: dict, intern: dict, state: FSMC
 async def send_practice_topic(chat_id: int, topic: dict, intern: dict, state: FSMContext, bot: Bot):
     """Отправка практической темы"""
     marathon_day = get_marathon_day(intern)
+    lang = intern.get('language', 'ru')
 
     # Показываем, что бот работает
     await bot.send_chat_action(chat_id=chat_id, action="typing")
-    await bot.send_message(chat_id, "⏳ Готовлю практическое задание...")
+    await bot.send_message(chat_id, f"⏳ {t('marathon.preparing_practice', lang)}")
 
     # Генерируем краткое введение
     intro = await claude.generate_practice_intro(topic, intern, marathon_day=marathon_day)
@@ -2676,16 +2660,16 @@ async def send_practice_topic(chat_id: int, topic: dict, intern: dict, state: FS
 
     examples_text = ""
     if examples:
-        examples_text = "\n*Примеры РП:*\n" + "\n".join([f"• {ex}" for ex in examples])
+        examples_text = f"\n*{t('marathon.wp_examples', lang)}:*\n" + "\n".join([f"• {ex}" for ex in examples])
 
     header = (
-        f"✏️ *День {marathon_day} — Практика*\n"
+        f"✏️ *{t('marathon.day_practice', lang, day=marathon_day)}*\n"
         f"*{topic['title']}*\n\n"
     )
 
     content = f"{intro}\n\n" if intro else ""
-    content += f"📋 *Задание:*\n{task}\n\n"
-    content += f"🎯 *Рабочий продукт:* {work_product}"
+    content += f"📋 *{t('marathon.task', lang)}:*\n{task}\n\n"
+    content += f"🎯 *{t('marathon.work_product', lang)}:* {work_product}"
     content += examples_text
 
     full = header + content
@@ -2698,12 +2682,12 @@ async def send_practice_topic(chat_id: int, topic: dict, intern: dict, state: FS
     # Запрос рабочего продукта
     await bot.send_message(
         chat_id,
-        "📝 *Когда выполните задание:*\n\n"
-        "Напишите название своего рабочего продукта.\n\n"
-        f"_Например: «{examples[0] if examples else work_product}»_\n\n"
-        "_Проверки нет — просто напишите, что сделали, и задание засчитается._",
+        f"📝 *{t('marathon.when_complete', lang)}:*\n\n"
+        f"{t('marathon.write_wp_name', lang)}\n\n"
+        f"_{t('marathon.example', lang)}: «{examples[0] if examples else work_product}»_\n\n"
+        f"_{t('marathon.no_check_hint', lang)}_",
         parse_mode="Markdown",
-        reply_markup=kb_submit_work_product()
+        reply_markup=kb_submit_work_product(lang)
     )
 
     await state.set_state(LearningStates.waiting_for_work_product)
@@ -2949,22 +2933,48 @@ async def on_unknown_message(message: Message, state: FSMContext):
 
     if intent.type == IntentType.QUESTION:
         # Пользователь задаёт вопрос — отвечаем через Claude + MCP
-        await message.answer(t('loading.processing', lang))
+        # Отправляем начальное сообщение о прогрессе
+        progress_msg = await message.answer(t('loading.progress.analyzing', lang))
+
+        # Создаём callback для обновления прогресса
+        async def update_progress(stage: str, percent: int):
+            """Обновляет сообщение о прогрессе"""
+            stage_texts = {
+                ProcessingStage.ANALYZING: t('loading.progress.analyzing', lang),
+                ProcessingStage.SEARCHING: t('loading.progress.searching', lang),
+                ProcessingStage.GENERATING: t('loading.progress.generating', lang),
+                ProcessingStage.DONE: t('loading.progress.done', lang),
+            }
+            new_text = stage_texts.get(stage, t('loading.processing', lang))
+            try:
+                await progress_msg.edit_text(new_text)
+            except Exception:
+                pass  # Игнорируем ошибки редактирования (например, текст не изменился)
 
         try:
             answer, sources = await handle_question(
                 question=text,
                 intern=intern,
-                context_topic=None
+                context_topic=None,
+                progress_callback=update_progress
             )
 
             response = answer
             if sources:
                 response += "\n\n📚 _Источники: " + ", ".join(sources[:2]) + "_"
 
+            # Удаляем сообщение о прогрессе и отправляем ответ
+            try:
+                await progress_msg.delete()
+            except Exception:
+                pass
             await message.answer(response, parse_mode="Markdown")
         except Exception as e:
             logger.error(f"Ошибка при обработке вопроса: {e}")
+            try:
+                await progress_msg.delete()
+            except Exception:
+                pass
             await message.answer(t('errors.try_again', lang))
 
     elif intent.type == IntentType.TOPIC_REQUEST:

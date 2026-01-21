@@ -8,7 +8,7 @@
 from typing import List, Dict, Optional
 import json
 
-from config import get_logger, FEED_TOPICS_TO_SUGGEST
+from config import get_logger, FEED_TOPICS_TO_SUGGEST, ONTOLOGY_RULES, ONTOLOGY_RULES_TOPICS
 from clients import claude, mcp_guides, mcp_knowledge
 
 logger = get_logger(__name__)
@@ -39,7 +39,17 @@ async def suggest_weekly_topics(intern: dict) -> List[Dict]:
     # Формируем профиль для промпта
     interests_str = ', '.join(interests) if interests else 'не указаны'
 
+    # Определяем язык ответа
+    lang = intern.get('language', 'ru')
+    lang_instruction = {
+        'ru': "Пиши на русском языке.",
+        'en': "Write in English.",
+        'es': "Escribe en español."
+    }.get(lang, "Пиши на русском языке.")
+
     system_prompt = f"""Ты — персональный наставник по системному мышлению.
+{lang_instruction}
+
 Твоя задача — предложить {FEED_TOPICS_TO_SUGGEST} тем для изучения.
 
 ПРОФИЛЬ УЧЕНИКА:
@@ -54,6 +64,8 @@ async def suggest_weekly_topics(intern: dict) -> List[Dict]:
 2. Учитывай профессию и интересы — темы должны быть релевантны
 3. Каждая тема для 5-12 минут изучения
 4. Разнообразь темы — не повторяй похожие концепции
+
+{ONTOLOGY_RULES_TOPICS}
 
 ФОРМАТ НАЗВАНИЯ ТЕМЫ:
 - Максимум 5 слов
@@ -407,7 +419,17 @@ async def generate_topic_content(
     # Рассчитываем объём текста
     words = session_duration * 100  # ~100 слов в минуту чтения
 
+    # Определяем язык ответа
+    lang = intern.get('language', 'ru')
+    lang_instruction = {
+        'ru': "Пиши на русском языке.",
+        'en': "Write in English.",
+        'es': "Escribe en español."
+    }.get(lang, "Пиши на русском языке.")
+
     system_prompt = f"""Ты — персональный наставник по системному мышлению.
+{lang_instruction}
+
 Создай микро-урок на тему "{topic.get('title')}" для {name}.
 
 ПРОФИЛЬ:
@@ -425,6 +447,8 @@ async def generate_topic_content(
 - Используй примеры из сферы "{occupation}" если возможно
 - Не используй заголовки и markdown
 - Заверши текст вопросом для размышления
+
+{ONTOLOGY_RULES}
 
 Верни JSON:
 {{
