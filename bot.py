@@ -2031,6 +2031,7 @@ async def on_save_bloom(callback: CallbackQuery, state: FSMContext):
         f"✅ Уровень сложности изменён на *{bloom['short_name']} «{bloom['name']}»*!\n\n"
         f"{bloom['desc']}\n\n"
         f"/learn — продолжить обучение\n"
+        f"/mode — выбрать режим\n"
         f"/update — обновить ещё что-то",
         parse_mode="Markdown"
     )
