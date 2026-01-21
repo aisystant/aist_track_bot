@@ -15,6 +15,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from config import get_logger
+from locales import t
 from .engine import FeedEngine
 from db.queries.users import get_intern
 from engines.shared import handle_question
@@ -22,15 +23,24 @@ from locales import t
 
 logger = get_logger(__name__)
 
+
+async def get_user_lang(chat_id: int) -> str:
+    """Получает язык пользователя из профиля"""
+    intern = await get_intern(chat_id)
+    if intern:
+        return intern.get('language', 'ru') or 'ru'
+    return 'ru'
+
 # Создаём роутер для Ленты
 feed_router = Router(name="feed")
 
 
 class FeedStates(StatesGroup):
     """FSM состояния для режима Лента"""
-    choosing_topics = State()      # Выбор тем на неделю
-    reading_content = State()      # Читает контент сессии
-    waiting_fixation = State()     # Ожидание фиксации
+    choosing_topics = State()       # Выбор тем на неделю
+    reading_content = State()       # Читает контент сессии
+    waiting_fixation = State()      # Ожидание фиксации
+    choosing_tomorrow = State()     # Выбор/изменение темы на завтра
 
 
 # ==================== КОМАНДЫ ====================
@@ -105,17 +115,22 @@ async def show_topic_selection(message: Message, topics: list, state: FSMContext
     """Показывает интерфейс выбора тем"""
     try:
         logger.info(f"show_topic_selection: получено {len(topics)} тем")
+        chat_id = message.chat.id
+        lang = await get_user_lang(chat_id)
+
         # Сохраняем темы в state
         await state.update_data(suggested_topics=topics, selected_indices=set())
         await state.set_state(FeedStates.choosing_topics)
 
-        text = "📚 *Темы на эту неделю*\n\n"
-        text += "Выберите интересующие темы (нажмите для выбора/отмены):\n\n"
+        text = f"📚 *{t('feed.suggested_topics', lang)}*\n\n"
 
         for i, topic in enumerate(topics):
             text += f"*{i+1}. {topic['title']}*\n"
-            text += f"_{topic.get('description', '')}_ \n"
-            text += f"💡 {topic.get('why', '')}\n\n"
+            text += f"   _{topic.get('why', '')}_\n\n"
+
+        text += "—\n"
+        text += f"{t('feed.select_hint', lang)}\n"
+        text += f"_{t('feed.select_example', lang)}_"
 
         # Создаём кнопки
         buttons = []
@@ -128,7 +143,7 @@ async def show_topic_selection(message: Message, topics: list, state: FSMContext
             ])
 
         buttons.append([
-            InlineKeyboardButton(text="✅ Подтвердить выбор", callback_data="feed_confirm")
+            InlineKeyboardButton(text=f"✅ {t('buttons.yes', lang)}", callback_data="feed_confirm")
         ])
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -138,7 +153,7 @@ async def show_topic_selection(message: Message, topics: list, state: FSMContext
     except Exception as e:
         import traceback
         logger.error(f"Ошибка в show_topic_selection: {e}\n{traceback.format_exc()}")
-        await message.answer("Произошла ошибка при отображении тем. Попробуйте позже.")
+        await message.answer(t('errors.try_again', await get_user_lang(message.chat.id)))
 
 
 @feed_router.callback_query(F.data.startswith("feed_topic_"))
@@ -184,22 +199,132 @@ async def toggle_topic(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
+def parse_topic_selection(text: str, topics_count: int) -> tuple[set, list]:
+    """Парсит текстовый выбор тем пользователя.
+
+    Примеры:
+    - "1, 3, 5" → выбраны темы 1, 3, 5
+    - "тема 2 и ещё хочу про собранность" → тема 2 + кастомная "собранность"
+    - "2, 4 и добавь внимание" → темы 2, 4 + кастомная "внимание"
+
+    Returns:
+        (selected_indices, custom_topics)
+    """
+    import re
+
+    selected_indices = set()
+    custom_topics = []
+
+    # Ищем номера тем (1-5)
+    numbers = re.findall(r'\b([1-5])\b', text)
+    for num in numbers:
+        idx = int(num) - 1
+        if 0 <= idx < topics_count:
+            selected_indices.add(idx)
+
+    # Ищем кастомные темы после ключевых слов
+    custom_patterns = [
+        r'(?:хочу|добавь|ещё|еще|также)\s+(?:про\s+)?([а-яА-ЯёЁa-zA-Z\s]+?)(?:[,.]|$|\s+и\s+|\s+тема)',
+        r'(?:и\s+)?про\s+([а-яА-ЯёЁa-zA-Z\s]+?)(?:[,.]|$)',
+    ]
+
+    for pattern in custom_patterns:
+        matches = re.findall(pattern, text.lower())
+        for match in matches:
+            topic = match.strip()
+            # Фильтруем короткие и числовые
+            if len(topic) >= 3 and not topic.isdigit():
+                # Убираем слова-маркеры
+                topic = re.sub(r'^(тему?|темы)\s+', '', topic)
+                if topic and len(topic) >= 3:
+                    custom_topics.append(topic.capitalize())
+
+    return selected_indices, custom_topics
+
+
+@feed_router.message(FeedStates.choosing_topics)
+async def handle_topic_text_selection(message: Message, state: FSMContext):
+    """Обрабатывает текстовый выбор тем"""
+    try:
+        text = message.text.strip()
+        data = await state.get_data()
+        topics = data.get('suggested_topics', [])
+        chat_id = message.chat.id
+        lang = await get_user_lang(chat_id)
+
+        if not topics:
+            await message.answer("Сначала используйте /feed для получения тем.")
+            return
+
+        # Парсим текст
+        selected_indices, custom_topics = parse_topic_selection(text, len(topics))
+
+        if not selected_indices and not custom_topics:
+            await message.answer(
+                f"{t('feed.select_hint', lang)}\n"
+                f"_{t('feed.select_example', lang)}_",
+                parse_mode="Markdown"
+            )
+            return
+
+        # Собираем выбранные темы
+        selected_titles = [topics[i]['title'] for i in sorted(selected_indices)]
+        selected_titles.extend(custom_topics)
+
+        # Принимаем темы
+        engine = FeedEngine(chat_id)
+        success, msg = await engine.accept_topics(selected_titles)
+
+        if not success:
+            await message.answer(msg)
+            return
+
+        # Очищаем state выбора тем
+        await state.clear()
+
+        # Показываем подтверждение с кнопками
+        confirm_text = f"✅ {t('feed.topics_selected', lang)}\n\n"
+        confirm_text += f"{t('feed.selected_topics', lang)}\n"
+        for i, title in enumerate(selected_titles, 1):
+            mark = "📌" if title in custom_topics else "✓"
+            confirm_text += f"{mark} {title}\n"
+
+        if custom_topics:
+            confirm_text += f"\n_📌 — {t('feed.your_topics', lang)}_"
+
+        confirm_text += f"\n\n{t('feed.what_next', lang)}"
+
+        # Кнопки "Начать сейчас" / "По расписанию"
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text=t('buttons.start_now', lang), callback_data="feed_start_now")],
+            [InlineKeyboardButton(text=t('buttons.start_scheduled', lang), callback_data="feed_start_scheduled")]
+        ])
+
+        await message.answer(confirm_text, reply_markup=keyboard, parse_mode="Markdown")
+
+    except Exception as e:
+        import traceback
+        logger.error(f"Ошибка в handle_topic_text_selection: {e}\n{traceback.format_exc()}")
+        await message.answer(t('errors.try_again', await get_user_lang(message.chat.id)))
+
+
 @feed_router.callback_query(F.data == "feed_confirm")
 async def confirm_topics(callback: CallbackQuery, state: FSMContext):
     """Подтверждает выбор тем"""
     data = await state.get_data()
     topics = data.get('suggested_topics', [])
     selected = data.get('selected_indices', set())
+    chat_id = callback.message.chat.id
+    lang = await get_user_lang(chat_id)
 
     if not selected:
-        await callback.answer("Выберите хотя бы одну тему!", show_alert=True)
+        await callback.answer(t('feed.select_hint', lang), show_alert=True)
         return
 
     # Получаем названия выбранных тем
     selected_titles = [topics[i]['title'] for i in sorted(selected)]
 
     # Принимаем темы
-    chat_id = callback.message.chat.id
     engine = FeedEngine(chat_id)
     success, msg = await engine.accept_topics(selected_titles)
 
@@ -207,17 +332,52 @@ async def confirm_topics(callback: CallbackQuery, state: FSMContext):
         await callback.answer(msg, show_alert=True)
         return
 
-    # Очищаем state и показываем сегодняшнюю сессию
+    # Очищаем state выбора тем
     await state.clear()
 
-    await callback.message.edit_text(
-        f"✅ {msg}\n\n"
-        f"Выбрано тем: {len(selected_titles)}\n"
-        + "\n".join([f"• {t}" for t in selected_titles])
-    )
+    # Показываем подтверждение с кнопками
+    confirm_text = f"✅ {t('feed.topics_selected', lang)}\n\n"
+    confirm_text += f"{t('feed.selected_topics', lang)}\n"
+    confirm_text += "\n".join([f"✓ {title}" for title in selected_titles])
+    confirm_text += f"\n\n{t('feed.what_next', lang)}"
 
-    # Показываем первую сессию
+    # Кнопки "Начать сейчас" / "По расписанию"
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=t('buttons.start_now', lang), callback_data="feed_start_now")],
+        [InlineKeyboardButton(text=t('buttons.start_scheduled', lang), callback_data="feed_start_scheduled")]
+    ])
+
+    await callback.message.edit_text(confirm_text, reply_markup=keyboard)
+    await callback.answer()
+
+
+@feed_router.callback_query(F.data == "feed_start_now")
+async def feed_start_now(callback: CallbackQuery, state: FSMContext):
+    """Начать сейчас — показать генерацию и контент"""
+    chat_id = callback.message.chat.id
+    lang = await get_user_lang(chat_id)
+
+    # Показываем сообщение о генерации
+    await callback.message.edit_text(t('loading.generating_content', lang))
+    await callback.answer()
+
+    # Генерируем и показываем контент
+    engine = FeedEngine(chat_id)
     await show_today_session(callback.message, engine, state)
+
+
+@feed_router.callback_query(F.data == "feed_start_scheduled")
+async def feed_start_scheduled(callback: CallbackQuery, state: FSMContext):
+    """По расписанию — просто подтвердить"""
+    chat_id = callback.message.chat.id
+    lang = await get_user_lang(chat_id)
+
+    await callback.message.edit_text(
+        f"✅ {t('feed.topics_selected', lang)}\n\n"
+        f"_{t('help.schedule_note', lang)}_",
+        parse_mode="Markdown"
+    )
+    await callback.answer(t('feed.topic_saved', lang))
 
 
 async def show_today_session(message: Message, engine: FeedEngine, state: FSMContext):
@@ -253,9 +413,13 @@ async def show_today_session(message: Message, engine: FeedEngine, state: FSMCon
         if content.get('reflection_prompt'):
             text += f"\n\n💭 *{content['reflection_prompt']}*"
 
-        # Кнопка для фиксации
+        # Получаем язык для кнопок
+        lang = await get_user_lang(message.chat.id)
+
+        # Кнопки: фиксация и "что дальше?"
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✍️ Написать фиксацию", callback_data="feed_fixation")]
+            [InlineKeyboardButton(text=f"✍️ {t('buttons.write_fixation', lang)}", callback_data="feed_fixation")],
+            [InlineKeyboardButton(text=f"📋 {t('feed.whats_next', lang)}", callback_data="feed_whats_next")]
         ])
 
         await state.set_state(FeedStates.reading_content)
@@ -332,6 +496,47 @@ async def handle_feed_question(message: Message, state: FSMContext):
         await message.answer("Не удалось обработать вопрос. Попробуйте позже.")
 
 
+@feed_router.callback_query(F.data == "feed_whats_next")
+async def show_whats_next(callback: CallbackQuery, state: FSMContext):
+    """Показывает предстоящие темы недели"""
+    chat_id = callback.message.chat.id
+    lang = await get_user_lang(chat_id)
+
+    try:
+        engine = FeedEngine(chat_id)
+        week = await engine.get_current_week()
+
+        if not week:
+            await callback.answer(t('errors.try_again', lang), show_alert=True)
+            return
+
+        topics = week.get('accepted_topics', [])
+        current_day = week.get('current_day', 1)
+
+        # Формируем список тем
+        text = f"📋 *{t('feed.whats_next', lang)}*\n\n"
+        text += f"{t('feed.week_progress', lang, current=current_day, total=len(topics))}\n\n"
+        text += f"*{t('feed.upcoming_topics', lang)}*\n"
+
+        for i, topic in enumerate(topics, 1):
+            if i < current_day:
+                mark = "✅"  # Пройдено
+            elif i == current_day:
+                mark = "📖"  # Сегодня
+            else:
+                mark = "⏳"  # Предстоит
+
+            text += f"{mark} {i}. {topic}\n"
+
+        await callback.message.answer(text, parse_mode="Markdown")
+        await callback.answer()
+
+    except Exception as e:
+        import traceback
+        logger.error(f"Ошибка в show_whats_next: {e}\n{traceback.format_exc()}")
+        await callback.answer(t('errors.try_again', lang), show_alert=True)
+
+
 @feed_router.callback_query(F.data == "feed_fixation")
 async def start_fixation(callback: CallbackQuery, state: FSMContext):
     """Начинает процесс фиксации"""
@@ -367,17 +572,153 @@ async def receive_fixation(message: Message, state: FSMContext):
         # Показываем статистику
         stats = await engine.get_week_summary()
 
-        await message.answer(
+        stat_text = (
             f"✅ {msg}\n\n"
             f"📊 *Статистика*\n"
             f"• Активных дней: {stats.get('total_active_days', 0)}\n"
-            f"• Текущая серия: {stats.get('current_streak', 0)} дней",
-            parse_mode="Markdown"
+            f"• Текущая серия: {stats.get('current_streak', 0)} дней"
         )
+        await message.answer(stat_text, parse_mode="Markdown")
+
+        # Показываем темы на завтра, если неделя не завершена
+        await show_tomorrow_topics(message, engine, state)
     else:
         await message.answer(f"❌ {msg}")
+        await state.clear()
 
+
+async def show_tomorrow_topics(message: Message, engine: FeedEngine, state: FSMContext):
+    """Показывает предложенные темы на завтра"""
+    from .planner import suggest_weekly_topics
+
+    try:
+        chat_id = message.chat.id
+        lang = await get_user_lang(chat_id)
+
+        week = await engine.get_current_week()
+        if not week or week.get('status') == 'completed':
+            await state.clear()
+            return
+
+        topics = week.get('accepted_topics', [])
+        current_day = week.get('current_day', 1)
+
+        # Если все темы пройдены - не показываем
+        if current_day > len(topics):
+            await state.clear()
+            return
+
+        # Текущая тема на завтра (из плана)
+        tomorrow_topic = topics[current_day - 1] if current_day <= len(topics) else None
+
+        if not tomorrow_topic:
+            await state.clear()
+            return
+
+        # Генерируем альтернативные предложения
+        intern = await engine.get_intern()
+        suggested = await suggest_weekly_topics(intern)
+
+        # Сохраняем в state для обработки
+        await state.update_data(
+            tomorrow_day=current_day,
+            current_tomorrow_topic=tomorrow_topic,
+            suggested_topics=suggested
+        )
+        await state.set_state(FeedStates.choosing_tomorrow)
+
+        # Формируем сообщение
+        text = f"\n📅 *{t('feed.tomorrow_planned', lang)}*\n"
+        text += f"➡️ {tomorrow_topic}\n\n"
+        text += f"*{t('feed.alternative_topics', lang)}*\n"
+
+        for i, topic in enumerate(suggested[:5], 1):
+            text += f"{i}. {topic['title']}\n"
+            text += f"   _{topic.get('why', '')}_\n"
+
+        text += "\n—\n"
+        text += t('feed.keep_or_change', lang)
+
+        # Кнопки
+        buttons = [
+            [InlineKeyboardButton(text=f"✅ {t('buttons.keep_topic', lang)}", callback_data="feed_keep_tomorrow")]
+        ]
+        keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+        await message.answer(text, reply_markup=keyboard, parse_mode="Markdown")
+
+    except Exception as e:
+        import traceback
+        logger.error(f"Ошибка в show_tomorrow_topics: {e}\n{traceback.format_exc()}")
+        await state.clear()
+
+
+@feed_router.callback_query(F.data == "feed_keep_tomorrow")
+async def keep_tomorrow_topic(callback: CallbackQuery, state: FSMContext):
+    """Оставляет текущую тему на завтра"""
+    chat_id = callback.message.chat.id
+    lang = await get_user_lang(chat_id)
+
+    await callback.message.edit_reply_markup(reply_markup=None)
+    await callback.answer(f"👍 {t('feed.topic_saved', lang)}")
     await state.clear()
+
+
+@feed_router.message(FeedStates.choosing_tomorrow)
+async def handle_tomorrow_selection(message: Message, state: FSMContext):
+    """Обрабатывает выбор/изменение темы на завтра"""
+    import re
+
+    try:
+        text = message.text.strip()
+        data = await state.get_data()
+        suggested = data.get('suggested_topics', [])
+        tomorrow_day = data.get('tomorrow_day', 1)
+
+        chat_id = message.chat.id
+        lang = await get_user_lang(chat_id)
+        engine = FeedEngine(chat_id)
+
+        new_topic = None
+
+        # Проверяем, это номер темы?
+        match = re.match(r'^([1-5])$', text)
+        if match:
+            idx = int(match.group(1)) - 1
+            if 0 <= idx < len(suggested):
+                new_topic = suggested[idx]['title']
+
+        # Иначе — это кастомная тема
+        if not new_topic and len(text) >= 3:
+            # Капитализируем и обрезаем до 5 слов
+            words = text.split()[:5]
+            new_topic = ' '.join(words).capitalize()
+
+        if not new_topic:
+            await message.answer(
+                t('feed.select_hint', lang),
+                parse_mode="Markdown"
+            )
+            return
+
+        # Обновляем тему на завтра
+        success = await engine.update_tomorrow_topic(tomorrow_day, new_topic)
+
+        if success:
+            await message.answer(
+                f"✅ {t('feed.topic_changed', lang)}\n➡️ *{new_topic}*",
+                parse_mode="Markdown"
+            )
+        else:
+            await message.answer(t('errors.try_again', lang))
+
+        await state.clear()
+
+    except Exception as e:
+        import traceback
+        logger.error(f"Ошибка в handle_tomorrow_selection: {e}\n{traceback.format_exc()}")
+        await message.answer(t('errors.try_again', await get_user_lang(message.chat.id)))
+        await state.clear()
 
 
 # ==================== СТАТУС ====================
