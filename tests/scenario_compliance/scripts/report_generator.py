@@ -66,6 +66,14 @@ class ClassResult:
     def critical_total(self) -> int:
         return sum(1 for s in self.scenarios if s.priority == 'critical')
 
+    @property
+    def normal_passed(self) -> int:
+        return sum(1 for s in self.scenarios if s.priority == 'normal' and s.passed)
+
+    @property
+    def normal_total(self) -> int:
+        return sum(1 for s in self.scenarios if s.priority == 'normal')
+
 
 class ReportGenerator:
     """Генератор отчётов."""
@@ -78,34 +86,55 @@ class ReportGenerator:
         self.thresholds = thresholds or {'green': 90, 'yellow': 70}
         self.weights = weights or {'critical': 2, 'normal': 1}
 
-    def _get_status_emoji(self, coverage: float, critical_coverage: float = 100.0) -> str:
+    def _get_status_emoji(
+        self,
+        coverage: float,
+        critical_coverage: float = 100.0,
+        normal_coverage: float = 100.0
+    ) -> str:
         """Возвращает эмодзи статуса по покрытию.
 
-        ВАЖНО: Зелёный и жёлтый даются только если критические сценарии работают (≥80%).
+        Логика цветов:
+        - 🟢 Зелёный: основные (critical) ≥90% И вспомогательные (normal) ≥80% И общее ≥90%
+        - 🟡 Жёлтый: основные (critical) ≥80% И общее ≥70%
+        - 🔴 Красный: основные <80% ИЛИ общее <70%
         """
-        # Если критические сценарии не работают - всегда красный
-        if critical_coverage < 80:
-            return '🔴'
-
-        if coverage >= self.thresholds['green']:
+        # Зелёный: основные И вспомогательные работают хорошо
+        if (critical_coverage >= 90 and
+            normal_coverage >= 80 and
+            coverage >= self.thresholds['green']):
             return '🟢'
-        elif coverage >= self.thresholds['yellow']:
-            return '🟡'
-        else:
-            return '🔴'
 
-    def _get_status_text(self, coverage: float, critical_coverage: float = 100.0) -> str:
+        # Жёлтый: как минимум основные работают
+        if (critical_coverage >= 80 and
+            coverage >= self.thresholds['yellow']):
+            return '🟡'
+
+        # Красный: основные не работают или общее покрытие низкое
+        return '🔴'
+
+    def _get_status_text(
+        self,
+        coverage: float,
+        critical_coverage: float = 100.0,
+        normal_coverage: float = 100.0
+    ) -> str:
         """Возвращает текст статуса по покрытию."""
-        # Если критические сценарии не работают
+        # Зелёный
+        if (critical_coverage >= 90 and
+            normal_coverage >= 80 and
+            coverage >= self.thresholds['green']):
+            return 'Отлично'
+
+        # Жёлтый
+        if (critical_coverage >= 80 and
+            coverage >= self.thresholds['yellow']):
+            return 'Требует внимания'
+
+        # Красный
         if critical_coverage < 80:
             return 'Критично (основные сценарии не работают)'
-
-        if coverage >= self.thresholds['green']:
-            return 'Отлично'
-        elif coverage >= self.thresholds['yellow']:
-            return 'Требует внимания'
-        else:
-            return 'Критично'
+        return 'Критично'
 
     def _calculate_weighted_coverage(self, classes: list[ClassResult]) -> float:
         """Вычисляет взвешенное покрытие с учётом приоритетов."""
@@ -140,14 +169,22 @@ class ReportGenerator:
         simple_coverage = (passed_scenarios / total_scenarios * 100) if total_scenarios else 0
         weighted_coverage = self._calculate_weighted_coverage(classes)
 
-        # Критические сценарии
+        # Критические сценарии (основные)
         critical_total = sum(c.critical_total for c in classes)
         critical_passed = sum(c.critical_passed for c in classes)
-        critical_coverage = (critical_passed / critical_total * 100) if critical_total else 0
+        critical_coverage = (critical_passed / critical_total * 100) if critical_total else 100
 
-        # ВАЖНО: Зелёный/жёлтый только если критические сценарии работают
-        main_status = self._get_status_emoji(weighted_coverage, critical_coverage)
-        critical_status = self._get_status_emoji(critical_coverage, critical_coverage)
+        # Вспомогательные сценарии (normal)
+        normal_total = sum(c.normal_total for c in classes)
+        normal_passed = sum(c.normal_passed for c in classes)
+        normal_coverage = (normal_passed / normal_total * 100) if normal_total else 100
+
+        # Логика цветов:
+        # 🟢 Зелёный: critical ≥90% И normal ≥80% И общее ≥90%
+        # 🟡 Жёлтый: critical ≥80% И общее ≥70%
+        # 🔴 Красный: иначе
+        main_status = self._get_status_emoji(weighted_coverage, critical_coverage, normal_coverage)
+        critical_status = self._get_status_emoji(critical_coverage, critical_coverage, 100)
 
         lines = []
 
@@ -164,9 +201,10 @@ class ReportGenerator:
         lines.append("")
         lines.append("| Метрика | Значение | Статус |")
         lines.append("|---------|----------|--------|")
-        lines.append(f"| **Взвешенное покрытие** | {weighted_coverage:.1f}% | {main_status} {self._get_status_text(weighted_coverage, critical_coverage)} |")
+        lines.append(f"| **Взвешенное покрытие** | {weighted_coverage:.1f}% | {main_status} {self._get_status_text(weighted_coverage, critical_coverage, normal_coverage)} |")
         lines.append(f"| Простое покрытие | {simple_coverage:.1f}% ({passed_scenarios}/{total_scenarios}) | — |")
-        lines.append(f"| **Критические сценарии** | {critical_coverage:.1f}% ({critical_passed}/{critical_total}) | {critical_status} |")
+        lines.append(f"| **Основные сценарии** | {critical_coverage:.1f}% ({critical_passed}/{critical_total}) | {critical_status} |")
+        lines.append(f"| Вспомогательные сценарии | {normal_coverage:.1f}% ({normal_passed}/{normal_total}) | — |")
         lines.append("")
 
         # Легенда
@@ -174,9 +212,9 @@ class ReportGenerator:
         lines.append("")
         lines.append(f"| Статус | Условие | Интерпретация |")
         lines.append("|--------|---------|---------------|")
-        lines.append(f"| 🟢 | ≥{self.thresholds['green']}% И критичные ≥80% | Бот работает хорошо |")
-        lines.append(f"| 🟡 | {self.thresholds['yellow']}-{self.thresholds['green']-1}% И критичные ≥80% | Вспомогательные сценарии не работают |")
-        lines.append(f"| 🔴 | <{self.thresholds['yellow']}% ИЛИ критичные <80% | Основные сценарии не работают |")
+        lines.append(f"| 🟢 | Основные ≥90% И вспомогательные ≥80% И общее ≥{self.thresholds['green']}% | Бот работает хорошо |")
+        lines.append(f"| 🟡 | Основные ≥80% И общее ≥{self.thresholds['yellow']}% | Вспомогательные сценарии могут не работать |")
+        lines.append(f"| 🔴 | Основные <80% ИЛИ общее <{self.thresholds['yellow']}% | Основные сценарии не работают |")
         lines.append("")
 
         # Сводка по классам
@@ -188,9 +226,10 @@ class ReportGenerator:
         lines.append("|---|-------|----------|-----------|--------|")
 
         for i, cls in enumerate(classes, 1):
-            # Статус класса зависит от его критических сценариев
+            # Статус класса зависит от его критических и вспомогательных сценариев
             cls_critical_coverage = (cls.critical_passed / cls.critical_total * 100) if cls.critical_total else 100
-            status = self._get_status_emoji(cls.coverage, cls_critical_coverage)
+            cls_normal_coverage = (cls.normal_passed / cls.normal_total * 100) if cls.normal_total else 100
+            status = self._get_status_emoji(cls.coverage, cls_critical_coverage, cls_normal_coverage)
             critical_str = f"{cls.critical_passed}/{cls.critical_total}" if cls.critical_total else "—"
             lines.append(
                 f"| {i} | [{cls.name}](#{cls.id}) | "
@@ -208,7 +247,8 @@ class ReportGenerator:
 
         for cls in classes:
             cls_critical_coverage = (cls.critical_passed / cls.critical_total * 100) if cls.critical_total else 100
-            status = self._get_status_emoji(cls.coverage, cls_critical_coverage)
+            cls_normal_coverage = (cls.normal_passed / cls.normal_total * 100) if cls.normal_total else 100
+            status = self._get_status_emoji(cls.coverage, cls_critical_coverage, cls_normal_coverage)
             lines.append(f"### {status} {cls.name}")
             lines.append("")
             lines.append(f"<a id=\"{cls.id}\"></a>")

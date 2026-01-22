@@ -169,22 +169,28 @@ def main():
     passed_scenarios = sum(c.passed_scenarios for c in results)
     coverage = (passed_scenarios / total_scenarios * 100) if total_scenarios else 0
 
-    # Критические сценарии
+    # Основные сценарии (critical)
     critical_total = sum(c.critical_total for c in results)
     critical_passed = sum(c.critical_passed for c in results)
     critical_coverage = (critical_passed / critical_total * 100) if critical_total else 100
 
-    # ВАЖНО: Зелёный/жёлтый только если критические сценарии работают (≥80%)
-    def get_status(cov: float, crit_cov: float) -> str:
-        if crit_cov < 80:
-            return 'red'
-        if cov >= thresholds['green']:
+    # Вспомогательные сценарии (normal)
+    normal_total = sum(c.normal_total for c in results)
+    normal_passed = sum(c.normal_passed for c in results)
+    normal_coverage = (normal_passed / normal_total * 100) if normal_total else 100
+
+    # Логика цветов:
+    # 🟢 Зелёный: critical ≥90% И normal ≥80% И общее ≥90%
+    # 🟡 Жёлтый: critical ≥80% И общее ≥70%
+    # 🔴 Красный: иначе
+    def get_status(cov: float, crit_cov: float, norm_cov: float) -> str:
+        if crit_cov >= 90 and norm_cov >= 80 and cov >= thresholds['green']:
             return 'green'
-        elif cov >= thresholds['yellow']:
+        if crit_cov >= 80 and cov >= thresholds['yellow']:
             return 'yellow'
         return 'red'
 
-    status_code = get_status(coverage, critical_coverage)
+    status_code = get_status(coverage, critical_coverage, normal_coverage)
 
     if args.json:
         # JSON вывод
@@ -192,10 +198,13 @@ def main():
             'date': datetime.now().isoformat(),
             'coverage': round(coverage, 1),
             'critical_coverage': round(critical_coverage, 1),
+            'normal_coverage': round(normal_coverage, 1),
             'passed': passed_scenarios,
             'total': total_scenarios,
             'critical_passed': critical_passed,
             'critical_total': critical_total,
+            'normal_passed': normal_passed,
+            'normal_total': normal_total,
             'report_path': str(output_path),
             'status': status_code,
             'classes': [
@@ -206,7 +215,9 @@ def main():
                     'passed': c.passed_scenarios,
                     'total': c.total_scenarios,
                     'critical_passed': c.critical_passed,
-                    'critical_total': c.critical_total
+                    'critical_total': c.critical_total,
+                    'normal_passed': c.normal_passed,
+                    'normal_total': c.normal_total
                 }
                 for c in results
             ]
@@ -218,7 +229,8 @@ def main():
         status = emoji_map[status_code]
 
         print(f"\n{status} Покрытие: {coverage:.1f}% ({passed_scenarios}/{total_scenarios})")
-        print(f"   Критичные: {critical_coverage:.1f}% ({critical_passed}/{critical_total})")
+        print(f"   Основные: {critical_coverage:.1f}% ({critical_passed}/{critical_total})")
+        print(f"   Вспомогательные: {normal_coverage:.1f}% ({normal_passed}/{normal_total})")
         print(f"📝 Отчёт сохранён: {output_path}")
 
     # Возвращаем код выхода: 0 если зелёный или жёлтый
