@@ -3046,6 +3046,10 @@ async def send_theory_topic(chat_id: int, topic: dict, intern: dict, state: FSMC
     else:
         await bot.send_message(chat_id, full, parse_mode="Markdown")
 
+    # ВАЖНО: Устанавливаем состояние ДО отправки сообщения
+    # чтобы избежать гонки, когда пользователь отвечает быстрее, чем сохраняется состояние
+    await state.set_state(LearningStates.waiting_for_answer)
+
     # Вопрос отдельным сообщением с подсказкой о состоянии
     await bot.send_message(
         chat_id,
@@ -3057,8 +3061,6 @@ async def send_theory_topic(chat_id: int, topic: dict, intern: dict, state: FSMC
         parse_mode="Markdown",
         reply_markup=kb_skip_topic(lang)
     )
-
-    await state.set_state(LearningStates.waiting_for_answer)
 
 
 async def send_practice_topic(chat_id: int, topic: dict, intern: dict, state: FSMContext, bot: Bot):
@@ -3098,6 +3100,10 @@ async def send_practice_topic(chat_id: int, topic: dict, intern: dict, state: FS
     else:
         await bot.send_message(chat_id, full, parse_mode="Markdown")
 
+    # ВАЖНО: Устанавливаем состояние ДО отправки сообщения
+    # чтобы избежать гонки, когда пользователь отвечает быстрее, чем сохраняется состояние
+    await state.set_state(LearningStates.waiting_for_work_product)
+
     # Запрос рабочего продукта с подсказкой о состоянии
     await bot.send_message(
         chat_id,
@@ -3110,8 +3116,6 @@ async def send_practice_topic(chat_id: int, topic: dict, intern: dict, state: FS
         parse_mode="Markdown",
         reply_markup=kb_submit_work_product(lang)
     )
-
-    await state.set_state(LearningStates.waiting_for_work_product)
 
 # ============= ПЛАНИРОВЩИК =============
 
