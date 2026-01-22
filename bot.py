@@ -19,11 +19,11 @@ from typing import Optional, List
 
 import yaml
 
-from aiogram import Bot, Dispatcher, Router, F
+from aiogram import Bot, Dispatcher, Router, F, BaseMiddleware
 from aiogram.types import (
     Message, CallbackQuery,
     InlineKeyboardMarkup, InlineKeyboardButton,
-    BotCommand
+    BotCommand, TelegramObject
 )
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
@@ -241,6 +241,26 @@ class UpdateStates(StatesGroup):
     updating_schedule = State()
     updating_bloom_level = State()
     updating_marathon_start = State()
+
+
+# ============= MIDDLEWARE ДЛЯ ОТЛАДКИ =============
+
+class LoggingMiddleware(BaseMiddleware):
+    """Middleware для логирования всех входящих сообщений"""
+
+    async def __call__(self, handler, event: TelegramObject, data: dict):
+        from aiogram.fsm.context import FSMContext
+
+        if isinstance(event, Message):
+            state: FSMContext = data.get('state')
+            current_state = await state.get_state() if state else None
+            logger.info(f"[MIDDLEWARE] Получено сообщение: chat_id={event.chat.id}, "
+                       f"user_id={event.from_user.id if event.from_user else None}, "
+                       f"text={event.text[:50] if event.text else '[no text]'}, "
+                       f"state={current_state}")
+
+        return await handler(event, data)
+
 
 # ============= БАЗА ДАННЫХ =============
 
@@ -3622,6 +3642,9 @@ async def main():
 
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher(storage=PostgresStorage())
+
+    # Регистрируем middleware для логирования
+    dp.message.middleware(LoggingMiddleware())
 
     # Подключаем роутеры режимов ПЕРЕД основным роутером
     # (чтобы catch-all handler в router не перехватывал их callback'и)
