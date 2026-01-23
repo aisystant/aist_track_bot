@@ -3381,8 +3381,10 @@ def is_main_router_callback(callback: CallbackQuery) -> bool:
 async def on_unknown_callback(callback: CallbackQuery, state: FSMContext):
     """Обработка неизвестных callback-запросов (истёкшие кнопки и т.д.)"""
     logger.warning(f"Unhandled callback: {callback.data} from user {callback.from_user.id}")
+    intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru') if intern else 'ru'
     await callback.answer(
-        "Кнопка устарела. Используйте /learn для продолжения.",
+        t('fsm.button_expired', lang),
         show_alert=True
     )
 
@@ -3397,6 +3399,9 @@ async def on_unknown_message(message: Message, state: FSMContext):
     # Если пользователь в каком-то состоянии — пробуем обработать вручную
     if current_state:
         logger.warning(f"[UNKNOWN] Message in state {current_state} reached fallback. Attempting manual routing for chat_id={chat_id}")
+        # Загружаем данные пользователя для локализации сообщений
+        intern = await get_intern(chat_id)
+        lang = intern.get('language', 'ru') if intern else 'ru'
         logger.info(f"[UNKNOWN] Expected states: answer={LearningStates.waiting_for_answer.state}, work={LearningStates.waiting_for_work_product.state}, bonus={LearningStates.waiting_for_bonus_answer.state}")
 
         try:
@@ -3417,21 +3422,21 @@ async def on_unknown_message(message: Message, state: FSMContext):
             logger.error(f"[UNKNOWN] Error routing to handler: {e}")
             import traceback
             logger.error(traceback.format_exc())
-            await message.answer("Произошла ошибка. Попробуйте /learn")
+            await message.answer(t('fsm.error_try_learn', lang))
             return
 
         # Для других состояний — показываем подсказку
         if 'OnboardingStates' in current_state:
-            await message.answer("Пожалуйста, завершите регистрацию или используйте /start для начала заново")
+            await message.answer(t('fsm.unrecognized_onboarding', lang))
             return
         elif 'UpdateStates' in current_state:
-            await message.answer("Пожалуйста, завершите обновление профиля или используйте /update для начала заново")
+            await message.answer(t('fsm.unrecognized_update', lang))
             return
         elif 'FeedStates' in current_state:
-            await message.answer("Пожалуйста, завершите действие в Ленте или используйте /feed")
+            await message.answer(t('fsm.unrecognized_feed', lang))
             return
         elif 'MarathonSettingsStates' in current_state:
-            await message.answer("Введите время в формате ЧЧ:ММ или нажмите Назад")
+            await message.answer(t('fsm.enter_time_format', lang))
             return
 
         # Неизвестное состояние — показываем команды
@@ -3451,10 +3456,9 @@ async def on_unknown_message(message: Message, state: FSMContext):
     intern = await get_intern(chat_id)
 
     if not intern:
-        # Новый пользователь
-        await message.answer(
-            "Здравствуйте! Для начала используйте /start"
-        )
+        # Новый пользователь — определяем язык из Telegram
+        lang = detect_language(message.from_user.language_code if message.from_user else None)
+        await message.answer(t('fsm.new_user_start', lang))
         return
 
     lang = intern.get('language', 'ru') or 'ru'

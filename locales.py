@@ -195,6 +195,15 @@ TRANSLATIONS = {
         # Ошибки
         'errors.try_again': 'Попробуй ещё раз',
 
+        # FSM fallback-сообщения
+        'fsm.unrecognized_onboarding': 'Я не распознал ваш ответ. Пожалуйста, завершите регистрацию или используйте /start для начала заново',
+        'fsm.unrecognized_update': 'Я не распознал ваш ответ. Пожалуйста, завершите обновление профиля или используйте /update для начала заново',
+        'fsm.unrecognized_feed': 'Я не распознал ваш ответ. Пожалуйста, завершите действие в Ленте или используйте /feed',
+        'fsm.enter_time_format': 'Введите время в формате ЧЧ:ММ или нажмите Назад',
+        'fsm.new_user_start': 'Здравствуйте! Для начала используйте /start',
+        'fsm.error_try_learn': 'Произошла ошибка. Попробуйте /learn',
+        'fsm.button_expired': 'Кнопка устарела. Используйте /learn для продолжения.',
+
         # Загрузка
         'loading.generating_topics': '⏳ Генерирую темы...',
         'loading.generating_content': '⏳ Готовлю материал...',
@@ -464,6 +473,15 @@ TRANSLATIONS = {
         # Errors
         'errors.try_again': 'Try again',
 
+        # FSM fallback messages
+        'fsm.unrecognized_onboarding': "I didn't recognize your response. Please complete registration or use /start to begin again",
+        'fsm.unrecognized_update': "I didn't recognize your response. Please complete profile update or use /update to start over",
+        'fsm.unrecognized_feed': "I didn't recognize your response. Please complete the Feed action or use /feed",
+        'fsm.enter_time_format': 'Enter time in HH:MM format or press Back',
+        'fsm.new_user_start': 'Hello! To get started, use /start',
+        'fsm.error_try_learn': 'An error occurred. Try /learn',
+        'fsm.button_expired': 'Button expired. Use /learn to continue.',
+
         # Loading
         'loading.generating_topics': '⏳ Generating topics...',
         'loading.generating_content': '⏳ Preparing content...',
@@ -732,6 +750,15 @@ TRANSLATIONS = {
 
         # Errores
         'errors.try_again': 'Inténtalo de nuevo',
+
+        # Mensajes FSM fallback
+        'fsm.unrecognized_onboarding': 'No reconocí tu respuesta. Por favor, completa el registro o usa /start para comenzar de nuevo',
+        'fsm.unrecognized_update': 'No reconocí tu respuesta. Por favor, completa la actualización del perfil o usa /update para empezar de nuevo',
+        'fsm.unrecognized_feed': 'No reconocí tu respuesta. Por favor, completa la acción en Feed o usa /feed',
+        'fsm.enter_time_format': 'Ingresa la hora en formato HH:MM o presiona Atrás',
+        'fsm.new_user_start': '¡Hola! Para comenzar, usa /start',
+        'fsm.error_try_learn': 'Ocurrió un error. Intenta /learn',
+        'fsm.button_expired': 'El botón ha expirado. Usa /learn para continuar.',
 
         # Cargando
         'loading.generating_topics': '⏳ Generando temas...',
