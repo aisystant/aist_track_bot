@@ -1529,6 +1529,7 @@ async def cmd_start(message: Message, state: FSMContext):
         lang = intern.get('language', 'ru')
 
         # Определяем текущий режим
+        from config import Mode
         current_mode = intern.get('mode', Mode.MARATHON)
         mode_emoji = "🏃" if current_mode == Mode.MARATHON else "📚"
         mode_name = t('help.marathon', lang) if current_mode == Mode.MARATHON else t('help.feed', lang)
