@@ -288,10 +288,16 @@ async def generate_answer(
 
     # Определяем язык ответа
     lang_instruction = {
-        'ru': "Отвечай на русском языке.",
-        'en': "Answer in English.",
-        'es': "Responde en español."
-    }.get(lang, "Отвечай на русском языке.")
+        'ru': "ВАЖНО: Отвечай на русском языке.",
+        'en': "IMPORTANT: Answer in English.",
+        'es': "IMPORTANTE: Responde en español."
+    }.get(lang, "ВАЖНО: Отвечай на русском языке.")
+
+    lang_reminder = {
+        'ru': "НАПОМИНАНИЕ: Весь ответ должен быть на РУССКОМ языке!",
+        'en': "REMINDER: The entire answer must be in ENGLISH!",
+        'es': "RECORDATORIO: ¡Toda la respuesta debe estar en ESPAÑOL!"
+    }.get(lang, "НАПОМИНАНИЕ: Весь ответ должен быть на РУССКОМ языке!")
 
     # Формируем системный промпт
     context_info = ""
@@ -350,9 +356,17 @@ async def generate_answer(
 {sources_instruction}
 
 {ONTOLOGY_RULES}
-{mcp_section}"""
+{mcp_section}
 
-    user_prompt = f"Вопрос: {question}"
+{lang_reminder}"""
+
+    # Локализуем промпт
+    user_prompts = {
+        'ru': f"Вопрос: {question}",
+        'en': f"Question: {question}",
+        'es': f"Pregunta: {question}"
+    }
+    user_prompt = user_prompts.get(lang, user_prompts['ru'])
 
     # Генерируем ответ
     answer = await claude.generate(system_prompt, user_prompt)
@@ -386,10 +400,16 @@ async def answer_with_context(
     # Определяем язык пользователя
     lang = intern.get('language', 'ru')
     lang_instruction = {
-        'ru': "Отвечай на русском языке.",
-        'en': "Answer in English.",
-        'es': "Responde en español."
-    }.get(lang, "Отвечай на русском языке.")
+        'ru': "ВАЖНО: Отвечай на русском языке.",
+        'en': "IMPORTANT: Answer in English.",
+        'es': "IMPORTANTE: Responde en español."
+    }.get(lang, "ВАЖНО: Отвечай на русском языке.")
+
+    lang_reminder = {
+        'ru': "НАПОМИНАНИЕ: Весь ответ должен быть на РУССКОМ языке!",
+        'en': "REMINDER: The entire answer must be in ENGLISH!",
+        'es': "RECORDATORIO: ¡Toda la respuesta debe estar en ESPAÑOL!"
+    }.get(lang, "НАПОМИНАНИЕ: Весь ответ должен быть на РУССКОМ языке!")
 
     occupation_info = f"\nПрофессия: {occupation}" if occupation else ""
     context_section = f"\n\nКОНТЕКСТ:\n{additional_context}" if additional_context else ""
@@ -401,9 +421,17 @@ async def answer_with_context(
 Отвечай кратко и по существу.
 
 {ONTOLOGY_RULES}
-{context_section}"""
+{context_section}
 
-    user_prompt = f"Вопрос: {question}"
+{lang_reminder}"""
+
+    # Локализуем промпт
+    user_prompts = {
+        'ru': f"Вопрос: {question}",
+        'en': f"Question: {question}",
+        'es': f"Pregunta: {question}"
+    }
+    user_prompt = user_prompts.get(lang, user_prompts['ru'])
 
     answer = await claude.generate(system_prompt, user_prompt)
     return answer or "Не удалось получить ответ. Попробуйте позже."

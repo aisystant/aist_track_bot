@@ -835,10 +835,16 @@ class ClaudeClient:
         # Определяем язык пользователя
         lang = intern.get('language', 'ru')
         lang_instruction = {
-            'ru': "Пиши на русском языке.",
-            'en': "Write in English.",
-            'es': "Escribe en español."
-        }.get(lang, "Пиши на русском языке.")
+            'ru': "ВАЖНО: Пиши ВСЁ на русском языке.",
+            'en': "IMPORTANT: Write EVERYTHING in English.",
+            'es': "IMPORTANTE: Escribe TODO en español."
+        }.get(lang, "ВАЖНО: Пиши ВСЁ на русском языке.")
+
+        lang_reminder = {
+            'ru': "НАПОМИНАНИЕ: Весь текст должен быть на РУССКОМ языке!",
+            'en': "REMINDER: All text must be in ENGLISH!",
+            'es': "RECORDATORIO: ¡Todo el texto debe estar en ESPAÑOL!"
+        }.get(lang, "НАПОМИНАНИЕ: Весь текст должен быть на РУССКОМ языке!")
 
         system_prompt = f"""Ты — персональный наставник по системному мышлению и личному развитию.
 {get_personalization_prompt(intern, marathon_day)}
@@ -854,26 +860,69 @@ class ClaudeClient:
 Вопрос будет задан отдельно после текста.
 {context_instruction}
 
-{ONTOLOGY_RULES}"""
+{ONTOLOGY_RULES}
+
+{lang_reminder}"""
 
         pain_point = topic.get('pain_point', '')
         key_insight = topic.get('key_insight', '')
         source = topic.get('source', '')
 
-        user_prompt = f"""Тема: {topic.get('title')}
-Основное понятие: {topic.get('main_concept')}
-Связанные понятия: {', '.join(topic.get('related_concepts', []))}
+        # Локализуем промпт
+        prompt_templates = {
+            'ru': {
+                'topic': 'Тема',
+                'concept': 'Основное понятие',
+                'related': 'Связанные понятия',
+                'pain': 'Боль читателя',
+                'insight': 'Ключевой инсайт',
+                'source': 'Источник',
+                'content_instruction': 'ИНСТРУКЦИЯ ПО КОНТЕНТУ',
+                'context_label': 'КОНТЕКСТ ИЗ МАТЕРИАЛОВ AISYSTANT',
+                'start_with': 'Начни с признания боли читателя, затем раскрой тему и подведи к ключевому инсайту.',
+                'use_context': 'Опирайся на контекст, но адаптируй под профиль стажера. Актуальные посты важнее.'
+            },
+            'en': {
+                'topic': 'Topic',
+                'concept': 'Main concept',
+                'related': 'Related concepts',
+                'pain': 'Reader pain point',
+                'insight': 'Key insight',
+                'source': 'Source',
+                'content_instruction': 'CONTENT INSTRUCTION',
+                'context_label': 'CONTEXT FROM AISYSTANT MATERIALS',
+                'start_with': 'Start by acknowledging the reader\'s pain, then cover the topic and lead to the key insight.',
+                'use_context': 'Use the context but adapt to the learner\'s profile. Recent posts take priority.'
+            },
+            'es': {
+                'topic': 'Tema',
+                'concept': 'Concepto principal',
+                'related': 'Conceptos relacionados',
+                'pain': 'Punto de dolor del lector',
+                'insight': 'Idea clave',
+                'source': 'Fuente',
+                'content_instruction': 'INSTRUCCIÓN DE CONTENIDO',
+                'context_label': 'CONTEXTO DE MATERIALES DE AISYSTANT',
+                'start_with': 'Comienza reconociendo el dolor del lector, luego desarrolla el tema y lleva a la idea clave.',
+                'use_context': 'Usa el contexto pero adapta al perfil del estudiante. Las publicaciones recientes tienen prioridad.'
+            }
+        }
+        pt = prompt_templates.get(lang, prompt_templates['ru'])
 
-{"Боль читателя: " + pain_point if pain_point else ""}
-{"Ключевой инсайт: " + key_insight if key_insight else ""}
-{"Источник: " + source if source else ""}
+        user_prompt = f"""{pt['topic']}: {topic.get('title')}
+{pt['concept']}: {topic.get('main_concept')}
+{pt['related']}: {', '.join(topic.get('related_concepts', []))}
 
-{f"ИНСТРУКЦИЯ ПО КОНТЕНТУ:{chr(10)}{content_prompt}" if content_prompt else ""}
+{pt['pain'] + ': ' + pain_point if pain_point else ''}
+{pt['insight'] + ': ' + key_insight if key_insight else ''}
+{pt['source'] + ': ' + source if source else ''}
 
-{f"КОНТЕКСТ ИЗ МАТЕРИАЛОВ AISYSTANT:{chr(10)}{mcp_context}" if mcp_context else ""}
+{f"{pt['content_instruction']}:{chr(10)}{content_prompt}" if content_prompt else ""}
 
-Начни с признания боли читателя, затем раскрой тему и подведи к ключевому инсайту.
-{"Опирайся на контекст, но адаптируй под профиль стажера. Актуальные посты важнее." if mcp_context else ""}"""
+{f"{pt['context_label']}:{chr(10)}{mcp_context}" if mcp_context else ""}
+
+{pt['start_with']}
+{pt['use_context'] if mcp_context else ""}"""
 
         result = await self.generate(system_prompt, user_prompt)
         return result or "Не удалось сгенерировать контент. Попробуйте /learn ещё раз."
@@ -883,10 +932,16 @@ class ClaudeClient:
         # Определяем язык пользователя
         lang = intern.get('language', 'ru')
         lang_instruction = {
-            'ru': "Пиши на русском языке.",
-            'en': "Write in English.",
-            'es': "Escribe en español."
-        }.get(lang, "Пиши на русском языке.")
+            'ru': "ВАЖНО: Пиши ВСЁ на русском языке.",
+            'en': "IMPORTANT: Write EVERYTHING in English.",
+            'es': "IMPORTANTE: Escribe TODO en español."
+        }.get(lang, "ВАЖНО: Пиши ВСЁ на русском языке.")
+
+        lang_reminder = {
+            'ru': "НАПОМИНАНИЕ: Весь текст должен быть на РУССКОМ языке!",
+            'en': "REMINDER: All text must be in ENGLISH!",
+            'es': "RECORDATORIO: ¡Todo el texto debe estar en ESPAÑOL!"
+        }.get(lang, "НАПОМИНАНИЕ: Весь текст должен быть на РУССКОМ языке!")
 
         system_prompt = f"""Ты — персональный наставник по системному мышлению.
 {get_personalization_prompt(intern, marathon_day)}
@@ -895,12 +950,16 @@ class ClaudeClient:
 Напиши краткое (3-5 предложений) введение к практическому заданию.
 Объясни, зачем это задание и как оно связано с темой дня.
 
-{ONTOLOGY_RULES}"""
+{ONTOLOGY_RULES}
+
+{lang_reminder}"""
 
         task = topic.get('task', '')
         work_product = topic.get('work_product', '')
 
-        user_prompt = f"""Практическое задание: {topic.get('title')}
+        # Локализуем промпт
+        user_prompts = {
+            'ru': f"""Практическое задание: {topic.get('title')}
 Основное понятие: {topic.get('main_concept')}
 
 Задание: {task}
@@ -908,7 +967,27 @@ class ClaudeClient:
 
 ВАЖНО: Рабочий продукт — это конкретный артефакт (существительное), а не действие.
 
-Напиши краткое введение, которое мотивирует выполнить задание."""
+Напиши краткое введение, которое мотивирует выполнить задание.""",
+            'en': f"""Practical task: {topic.get('title')}
+Main concept: {topic.get('main_concept')}
+
+Task: {task}
+Work product: {work_product}
+
+IMPORTANT: The work product is a concrete artifact (noun), not an action.
+
+Write a brief introduction that motivates completing the task.""",
+            'es': f"""Tarea práctica: {topic.get('title')}
+Concepto principal: {topic.get('main_concept')}
+
+Tarea: {task}
+Producto de trabajo: {work_product}
+
+IMPORTANTE: El producto de trabajo es un artefacto concreto (sustantivo), no una acción.
+
+Escribe una breve introducción que motive a completar la tarea."""
+        }
+        user_prompt = user_prompts.get(lang, user_prompts['ru'])
 
         result = await self.generate(system_prompt, user_prompt)
         return result or ""
@@ -969,10 +1048,16 @@ class ClaudeClient:
         # Определяем язык пользователя
         lang = intern.get('language', 'ru')
         lang_instruction = {
-            'ru': "Пиши вопрос на русском языке.",
-            'en': "Write the question in English.",
-            'es': "Escribe la pregunta en español."
-        }.get(lang, "Пиши вопрос на русском языке.")
+            'ru': "ВАЖНО: Пиши вопрос на русском языке.",
+            'en': "IMPORTANT: Write the question in English.",
+            'es': "IMPORTANTE: Escribe la pregunta en español."
+        }.get(lang, "ВАЖНО: Пиши вопрос на русском языке.")
+
+        lang_reminder = {
+            'ru': "НАПОМИНАНИЕ: Вопрос должен быть на РУССКОМ языке!",
+            'en': "REMINDER: The question must be in ENGLISH!",
+            'es': "RECORDATORIO: ¡La pregunta debe estar en ESPAÑOL!"
+        }.get(lang, "НАПОМИНАНИЕ: Вопрос должен быть на РУССКОМ языке!")
 
         system_prompt = f"""Ты генерируешь ТОЛЬКО ОДИН КОРОТКИЙ ВОПРОС. Ничего больше.
 {lang_instruction}
@@ -990,13 +1075,29 @@ class ClaudeClient:
 {question_type_hint}
 {templates_hint}
 
-{ONTOLOGY_RULES}"""
+{ONTOLOGY_RULES}
 
-        user_prompt = f"""Тема: {topic.get('title')}
+{lang_reminder}"""
+
+        # Локализуем промпт
+        user_prompts = {
+            'ru': f"""Тема: {topic.get('title')}
 Понятие: {topic.get('main_concept')}
 Контекст: {question_context}
 
-Выдай ТОЛЬКО вопрос (1-3 предложения), без введения и пояснений."""
+Выдай ТОЛЬКО вопрос (1-3 предложения), без введения и пояснений.""",
+            'en': f"""Topic: {topic.get('title')}
+Concept: {topic.get('main_concept')}
+Context: {question_context}
+
+Output ONLY the question (1-3 sentences), without introduction or explanations.""",
+            'es': f"""Tema: {topic.get('title')}
+Concepto: {topic.get('main_concept')}
+Contexto: {question_context}
+
+Genera SOLO la pregunta (1-3 oraciones), sin introducción ni explicaciones."""
+        }
+        user_prompt = user_prompts.get(lang, user_prompts['ru'])
 
         result = await self.generate(system_prompt, user_prompt)
         return result or bloom['question_type'].format(concept=topic.get('main_concept', 'эту тему'))
