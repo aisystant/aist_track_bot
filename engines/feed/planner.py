@@ -47,6 +47,12 @@ async def suggest_weekly_topics(intern: dict) -> List[Dict]:
         'es': "IMPORTANTE: Escribe TODO en español."
     }.get(lang, "ВАЖНО: Пиши ВСЁ на русском языке.")
 
+    lang_reminder = {
+        'ru': "НАПОМИНАНИЕ: Весь текст (title, why) должен быть на РУССКОМ языке!",
+        'en': "REMINDER: All text (title, why) must be in ENGLISH!",
+        'es': "RECORDATORIO: ¡Todo el texto (title, why) debe estar en ESPAÑOL!"
+    }.get(lang, "НАПОМИНАНИЕ: Весь текст должен быть на РУССКОМ языке!")
+
     system_prompt = f"""Ты — персональный наставник по системному мышлению.
 {lang_instruction}
 
@@ -70,26 +76,30 @@ async def suggest_weekly_topics(intern: dict) -> List[Dict]:
 ФОРМАТ НАЗВАНИЯ ТЕМЫ:
 - Максимум 5 слов
 - Ёмко и конкретно
-- Примеры: "Три состояния внимания", "Рабочий продукт практики", "Инженерия себя"
 
 ФОРМАТ ОБОСНОВАНИЯ (why):
 - Ровно одно предложение
 - Объясни, почему полезно именно этому ученику
-- Пример: "Поможет структурировать хаос задач в твоей работе менеджера."
 
 {f"АКТУАЛЬНЫЕ ТЕМЫ ИЗ МАТЕРИАЛОВ AISYSTANT:{chr(10)}{mcp_context}" if mcp_context else ""}
+
+{lang_reminder}
 
 Верни ответ СТРОГО в JSON формате:
 [
     {{
-        "title": "Название (до 5 слов)",
-        "why": "Одно предложение — почему полезно именно тебе.",
-        "keywords": ["ключевое", "слово"]
+        "title": "Topic name (max 5 words)",
+        "why": "One sentence — why useful for this student.",
+        "keywords": ["keyword1", "keyword2"]
     }},
     ...
 ]"""
 
-    user_prompt = f"Предложи {FEED_TOPICS_TO_SUGGEST} темы для изучения на неделю."
+    user_prompt = {
+        'ru': f"Предложи {FEED_TOPICS_TO_SUGGEST} тем для изучения на неделю.",
+        'en': f"Suggest {FEED_TOPICS_TO_SUGGEST} topics to study this week.",
+        'es': f"Sugiere {FEED_TOPICS_TO_SUGGEST} temas para estudiar esta semana."
+    }.get(lang, f"Предложи {FEED_TOPICS_TO_SUGGEST} тем для изучения на неделю.")
 
     response = await claude.generate(system_prompt, user_prompt)
 
@@ -296,10 +306,16 @@ async def generate_multi_topic_digest(
     # Определяем язык пользователя
     lang = intern.get('language', 'ru')
     lang_instruction = {
-        'ru': "Пиши на русском языке.",
-        'en': "Write in English.",
-        'es': "Escribe en español."
-    }.get(lang, "Пиши на русском языке.")
+        'ru': "ВАЖНО: Пиши ВСЁ на русском языке.",
+        'en': "IMPORTANT: Write EVERYTHING in English.",
+        'es': "IMPORTANTE: Escribe TODO en español."
+    }.get(lang, "ВАЖНО: Пиши ВСЁ на русском языке.")
+
+    lang_reminder = {
+        'ru': "НАПОМИНАНИЕ: Весь текст (intro, main_content, reflection_prompt) должен быть на РУССКОМ языке!",
+        'en': "REMINDER: All text (intro, main_content, reflection_prompt) must be in ENGLISH!",
+        'es': "RECORDATORIO: ¡Todo el texto (intro, main_content, reflection_prompt) debe estar en ESPAÑOL!"
+    }.get(lang, "НАПОМИНАНИЕ: Весь текст должен быть на РУССКОМ языке!")
 
     system_prompt = f"""Ты — персональный наставник по системному мышлению.
 Создай дайджест, объединяющий несколько тем для {name}.
@@ -329,6 +345,8 @@ async def generate_multi_topic_digest(
 - Переходи от темы к теме плавно, без явного деления
 - Заверши текст вопросом для размышления
 
+{lang_reminder}
+
 Верни JSON:
 {{
     "intro": "краткое введение (1-2 предложения)",
@@ -336,7 +354,11 @@ async def generate_multi_topic_digest(
     "reflection_prompt": "один вопрос для рефлексии"
 }}"""
 
-    user_prompt = f"Темы: {topics_str}\nУровень глубины: {depth_level}"
+    user_prompt = {
+        'ru': f"Темы: {topics_str}\nУровень глубины: {depth_level}",
+        'en': f"Topics: {topics_str}\nDepth level: {depth_level}",
+        'es': f"Temas: {topics_str}\nNivel de profundidad: {depth_level}"
+    }.get(lang, f"Темы: {topics_str}\nУровень глубины: {depth_level}")
 
     response = await claude.generate(system_prompt, user_prompt)
 
@@ -436,6 +458,12 @@ async def generate_topic_content(
         'es': "IMPORTANTE: Escribe TODO en español."
     }.get(lang, "ВАЖНО: Пиши ВСЁ на русском языке.")
 
+    lang_reminder = {
+        'ru': "НАПОМИНАНИЕ: Весь текст (intro, main_content, reflection_prompt) должен быть на РУССКОМ языке!",
+        'en': "REMINDER: All text (intro, main_content, reflection_prompt) must be in ENGLISH!",
+        'es': "RECORDATORIO: ¡Todo el texto (intro, main_content, reflection_prompt) debe estar en ESPAÑOL!"
+    }.get(lang, "НАПОМИНАНИЕ: Весь текст должен быть на РУССКОМ языке!")
+
     system_prompt = f"""Ты — персональный наставник по системному мышлению.
 {lang_instruction}
 
@@ -459,6 +487,8 @@ async def generate_topic_content(
 
 {ONTOLOGY_RULES}
 
+{lang_reminder}
+
 Верни JSON:
 {{
     "intro": "краткое введение",
@@ -466,7 +496,11 @@ async def generate_topic_content(
     "reflection_prompt": "вопрос для рефлексии"
 }}"""
 
-    user_prompt = f"Тема: {topic.get('title')}\nОписание: {topic.get('description', '')}"
+    user_prompt = {
+        'ru': f"Тема: {topic.get('title')}\nОписание: {topic.get('description', '')}",
+        'en': f"Topic: {topic.get('title')}\nDescription: {topic.get('description', '')}",
+        'es': f"Tema: {topic.get('title')}\nDescripción: {topic.get('description', '')}"
+    }.get(lang, f"Тема: {topic.get('title')}\nОписание: {topic.get('description', '')}")
 
     response = await claude.generate(system_prompt, user_prompt)
 
