@@ -184,10 +184,10 @@ class ClaudeClient:
         # Определяем язык ответа
         lang = intern.get('language', 'ru')
         lang_instruction = {
-            'ru': "Пиши на русском языке.",
-            'en': "Write in English.",
-            'es': "Escribe en español."
-        }.get(lang, "Пиши на русском языке.")
+            'ru': "ВАЖНО: Пиши ВСЁ на русском языке.",
+            'en': "IMPORTANT: Write EVERYTHING in English.",
+            'es': "IMPORTANTE: Escribe TODO en español."
+        }.get(lang, "ВАЖНО: Пиши ВСЁ на русском языке.")
 
         system_prompt = f"""Ты — персональный наставник по системному мышлению и личному развитию.
 {get_personalization_prompt(intern)}
@@ -241,10 +241,10 @@ class ClaudeClient:
         # Определяем язык ответа
         lang = intern.get('language', 'ru')
         lang_instruction = {
-            'ru': "Пиши на русском языке.",
-            'en': "Write in English.",
-            'es': "Escribe en español."
-        }.get(lang, "Пиши на русском языке.")
+            'ru': "ВАЖНО: Пиши ВСЁ на русском языке.",
+            'en': "IMPORTANT: Write EVERYTHING in English.",
+            'es': "IMPORTANTE: Escribe TODO en español."
+        }.get(lang, "ВАЖНО: Пиши ВСЁ на русском языке.")
 
         system_prompt = f"""Ты — персональный наставник по системному мышлению.
 {get_personalization_prompt(intern)}
@@ -321,10 +321,10 @@ class ClaudeClient:
         # Определяем язык ответа
         lang = intern.get('language', 'ru')
         lang_instruction = {
-            'ru': "Задай вопрос на русском языке.",
-            'en': "Ask the question in English.",
-            'es': "Haz la pregunta en español."
-        }.get(lang, "Задай вопрос на русском языке.")
+            'ru': "ВАЖНО: Задай вопрос на русском языке.",
+            'en': "IMPORTANT: Ask the question in English.",
+            'es': "IMPORTANTE: Haz la pregunta en español."
+        }.get(lang, "ВАЖНО: Задай вопрос на русском языке.")
 
         system_prompt = f"""Ты генерируешь ТОЛЬКО ОДИН КОРОТКИЙ ВОПРОС. Ничего больше.
 

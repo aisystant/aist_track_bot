@@ -288,10 +288,10 @@ async def generate_answer(
 
     # Определяем язык ответа
     lang_instruction = {
-        'ru': "Отвечай на русском языке.",
-        'en': "Answer in English.",
-        'es': "Responde en español."
-    }.get(lang, "Отвечай на русском языке.")
+        'ru': "ВАЖНО: Отвечай на русском языке.",
+        'en': "IMPORTANT: Answer in English.",
+        'es': "IMPORTANTE: Responde en español."
+    }.get(lang, "ВАЖНО: Отвечай на русском языке.")
 
     # Формируем системный промпт
     context_info = ""
@@ -386,10 +386,10 @@ async def answer_with_context(
     # Определяем язык пользователя
     lang = intern.get('language', 'ru')
     lang_instruction = {
-        'ru': "Отвечай на русском языке.",
-        'en': "Answer in English.",
-        'es': "Responde en español."
-    }.get(lang, "Отвечай на русском языке.")
+        'ru': "ВАЖНО: Отвечай на русском языке.",
+        'en': "IMPORTANT: Answer in English.",
+        'es': "IMPORTANTE: Responde en español."
+    }.get(lang, "ВАЖНО: Отвечай на русском языке.")
 
     occupation_info = f"\nПрофессия: {occupation}" if occupation else ""
     context_section = f"\n\nКОНТЕКСТ:\n{additional_context}" if additional_context else ""

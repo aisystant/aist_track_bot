@@ -835,10 +835,10 @@ class ClaudeClient:
         # Определяем язык пользователя
         lang = intern.get('language', 'ru')
         lang_instruction = {
-            'ru': "Пиши на русском языке.",
-            'en': "Write in English.",
-            'es': "Escribe en español."
-        }.get(lang, "Пиши на русском языке.")
+            'ru': "ВАЖНО: Пиши ВСЁ на русском языке.",
+            'en': "IMPORTANT: Write EVERYTHING in English.",
+            'es': "IMPORTANTE: Escribe TODO en español."
+        }.get(lang, "ВАЖНО: Пиши ВСЁ на русском языке.")
 
         system_prompt = f"""Ты — персональный наставник по системному мышлению и личному развитию.
 {get_personalization_prompt(intern, marathon_day)}
@@ -883,10 +883,10 @@ class ClaudeClient:
         # Определяем язык пользователя
         lang = intern.get('language', 'ru')
         lang_instruction = {
-            'ru': "Пиши на русском языке.",
-            'en': "Write in English.",
-            'es': "Escribe en español."
-        }.get(lang, "Пиши на русском языке.")
+            'ru': "ВАЖНО: Пиши ВСЁ на русском языке.",
+            'en': "IMPORTANT: Write EVERYTHING in English.",
+            'es': "IMPORTANTE: Escribe TODO en español."
+        }.get(lang, "ВАЖНО: Пиши ВСЁ на русском языке.")
 
         system_prompt = f"""Ты — персональный наставник по системному мышлению.
 {get_personalization_prompt(intern, marathon_day)}
@@ -969,10 +969,10 @@ class ClaudeClient:
         # Определяем язык пользователя
         lang = intern.get('language', 'ru')
         lang_instruction = {
-            'ru': "Пиши вопрос на русском языке.",
-            'en': "Write the question in English.",
-            'es': "Escribe la pregunta en español."
-        }.get(lang, "Пиши вопрос на русском языке.")
+            'ru': "ВАЖНО: Пиши вопрос на русском языке.",
+            'en': "IMPORTANT: Write the question in English.",
+            'es': "IMPORTANTE: Escribe la pregunta en español."
+        }.get(lang, "ВАЖНО: Пиши вопрос на русском языке.")
 
         system_prompt = f"""Ты генерируешь ТОЛЬКО ОДИН КОРОТКИЙ ВОПРОС. Ничего больше.
 {lang_instruction}

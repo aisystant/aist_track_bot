@@ -42,10 +42,10 @@ async def suggest_weekly_topics(intern: dict) -> List[Dict]:
     # Определяем язык ответа
     lang = intern.get('language', 'ru')
     lang_instruction = {
-        'ru': "Пиши на русском языке.",
-        'en': "Write in English.",
-        'es': "Escribe en español."
-    }.get(lang, "Пиши на русском языке.")
+        'ru': "ВАЖНО: Пиши ВСЁ на русском языке.",
+        'en': "IMPORTANT: Write EVERYTHING in English.",
+        'es': "IMPORTANTE: Escribe TODO en español."
+    }.get(lang, "ВАЖНО: Пиши ВСЁ на русском языке.")
 
     system_prompt = f"""Ты — персональный наставник по системному мышлению.
 {lang_instruction}
@@ -431,10 +431,10 @@ async def generate_topic_content(
     # Определяем язык ответа
     lang = intern.get('language', 'ru')
     lang_instruction = {
-        'ru': "Пиши на русском языке.",
-        'en': "Write in English.",
-        'es': "Escribe en español."
-    }.get(lang, "Пиши на русском языке.")
+        'ru': "ВАЖНО: Пиши ВСЁ на русском языке.",
+        'en': "IMPORTANT: Write EVERYTHING in English.",
+        'es': "IMPORTANTE: Escribe TODO en español."
+    }.get(lang, "ВАЖНО: Пиши ВСЁ на русском языке.")
 
     system_prompt = f"""Ты — персональный наставник по системному мышлению.
 {lang_instruction}
