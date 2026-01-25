@@ -29,7 +29,7 @@ class MarathonQuestionState(BaseState):
 
     name = "workshop.marathon.question"
     display_name = {"ru": "Вопрос урока", "en": "Lesson Question"}
-    allow_global = ["consultant", "notes"]
+    allow_global = ["consultation", "notes"]
 
     def _get_lang(self, user) -> str:
         """Получить язык пользователя."""

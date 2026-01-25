@@ -28,7 +28,7 @@ class MarathonBonusState(BaseState):
 
     name = "workshop.marathon.bonus"
     display_name = {"ru": "Бонусный вопрос", "en": "Bonus Question"}
-    allow_global = ["consultant", "notes"]
+    allow_global = ["consultation", "notes"]
 
     # Тексты кнопок
     YES_BUTTONS = ["🚀 Да, давай сложнее!", "🚀 Yes, harder!", "🚀 Sí, más difícil"]

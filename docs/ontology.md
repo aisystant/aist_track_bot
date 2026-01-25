@@ -197,6 +197,40 @@
 
 ---
 
+## 10. Структура стейтов (State Machine)
+
+> Стейты описывают **процессы** (что происходит), а не агентов (кто действует).
+
+### Namespaces (пространства имён)
+
+| Namespace | Назначение | Примеры стейтов |
+|-----------|------------|-----------------|
+| `common.*` | Общие процессы | `start`, `mode_select`, `error`, `consultation` |
+| `workshop.marathon.*` | Марафон | `lesson`, `question`, `bonus`, `task` |
+| `feed.*` | Лента | `topics`, `digest` |
+| `utility.*` | Утилиты | `notes`, `export` |
+
+### Глобальные процессы
+
+Некоторые процессы могут быть вызваны из любого стейта:
+
+| Процесс | Триггер | Стейт | Возврат |
+|---------|---------|-------|---------|
+| **Консультация** | `?` | `common.consultation` | `_previous` |
+| **Заметки** | `/note` | `utility.notes` | `_previous` |
+| **Экспорт** | `/export` | `utility.export` | `_previous` |
+
+### Соответствие файлов и стейтов
+
+| Стейт | Файл | Класс |
+|-------|------|-------|
+| `common.start` | `states/common/start.py` | `StartState` |
+| `common.consultation` | `states/common/consultation.py` | `ConsultationState` |
+| `workshop.marathon.lesson` | `states/workshops/marathon/lesson.py` | `MarathonLessonState` |
+| `feed.topics` | `states/feed/topics.py` | `FeedTopicsState` |
+
+---
+
 ## История изменений
 
 | Дата | Изменение |
@@ -204,3 +238,4 @@
 | 2025-01-21 | Создание документа. Утверждена базовая онтология |
 | 2025-01-21 | Добавлены: Вопрос пользователя (Вопрос), Консультация (Обратная связь). Удалён "Вопрос пользователя" из категории "Ответ" |
 | 2026-01-23 | Добавлен раздел 8: Сценарии, Процессы, Данные. Создана структура `docs/processes/` и `docs/data/` |
+| 2026-01-25 | Добавлен раздел 10: Структура стейтов. Определены namespaces: common, workshop.marathon, feed, utility |

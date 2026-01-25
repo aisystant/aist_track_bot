@@ -5,10 +5,12 @@
 - start.py: начало работы, онбординг
 - error.py: обработка ошибок
 - mode_select.py: выбор режима работы
+- consultation.py: консультация (ответ на вопрос пользователя)
 """
 
 from .start import StartState
 from .error import ErrorState
 from .mode_select import ModeSelectState
+from .consultation import ConsultationState
 
-__all__ = ['StartState', 'ErrorState', 'ModeSelectState']
+__all__ = ['StartState', 'ErrorState', 'ModeSelectState', 'ConsultationState']
