@@ -1,12 +1,10 @@
 """
-Стейты консультантов.
+DEPRECATED: Эта директория больше не используется.
 
-Содержит:
-- main.py: общий консультант (?)
-- feed_topics.py: выбор тем для ленты
-- feed_digest.py: показ дайджеста
-- assessment_test.py: прохождение теста ступени (в разработке)
-- assessment_result.py: результат теста (в разработке)
+Стейты были перемещены:
+- consultant.main → common.consultation (в common/consultation.py)
+- consultant.feed_topics → feed.topics (в feed/topics.py)
+- consultant.feed_digest → feed.digest (в feed/digest.py)
 
-TODO: Консультант будет реализован на Неделе 3, Feed на Неделе 4.
+TODO: Удалить эту директорию после миграции.
 """

@@ -15,7 +15,7 @@ from core.machine import StateMachine
 from i18n import I18n
 
 # Импортируем стейты
-from states.common import StartState, ErrorState, ModeSelectState
+from states.common import StartState, ErrorState, ModeSelectState, ConsultationState
 
 # Марафон (полностью реализовано)
 from states.workshops.marathon import (
@@ -25,11 +25,8 @@ from states.workshops.marathon import (
     MarathonTaskState,
 )
 
-# TODO: Неделя 3 — раскомментировать после создания
-# from states.consultants import MainConsultantState
-
 # TODO: Неделя 4 — раскомментировать после создания
-# from states.consultants import FeedTopicsState, FeedDigestState
+# from states.feed import FeedTopicsState, FeedDigestState
 
 # TODO: Неделя 6 — раскомментировать после создания
 # from states.utilities import NotesState, ExportState
@@ -58,19 +55,17 @@ def register_all_states(
     args = (bot, db, llm, i18n)
 
     states = [
-        # Common стейты (Неделя 1)
+        # Common стейты
         StartState(*args),
         ErrorState(*args),
         ModeSelectState(*args),
+        ConsultationState(*args),  # Глобальный стейт консультации
 
         # Marathon стейты (полностью реализовано)
         MarathonLessonState(*args),
         MarathonQuestionState(*args),
         MarathonBonusState(*args),
         MarathonTaskState(*args),
-
-        # TODO: Consultant стейты (Неделя 3)
-        # MainConsultantState(*args),
 
         # TODO: Feed стейты (Неделя 4)
         # FeedTopicsState(*args),
@@ -97,21 +92,19 @@ def get_available_states() -> list[str]:
         "common.error",
         "common.mode_select",
         "common.settings",
+        "common.consultation",  # Консультация
 
-        # Marathon (Неделя 2)
+        # Marathon
         "workshop.marathon.lesson",
         "workshop.marathon.question",
         "workshop.marathon.bonus",
         "workshop.marathon.task",
 
-        # Consultant (Неделя 3-4)
-        "consultant.main",
-        "consultant.feed_topics",
-        "consultant.feed_digest",
-        "consultant.assessment_test",
-        "consultant.assessment_result",
+        # Feed (Лента)
+        "feed.topics",
+        "feed.digest",
 
-        # Utilities (Неделя 6)
+        # Utilities
         "utility.notes",
         "utility.export",
     ]
