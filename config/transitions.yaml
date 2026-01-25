@@ -65,8 +65,8 @@ states:
   workshop.marathon.question:
     description: "Вопрос на понимание урока"
     events:
-      correct: workshop.marathon.bonus  # Предлагаем бонусный вопрос
-      correct_max_level: workshop.marathon.task  # Уже максимальный уровень
+      correct: workshop.marathon.bonus  # Уровни 2-3 → предлагаем бонусный вопрос
+      correct_level_1: workshop.marathon.task  # Уровень 1 → сразу задание
       incorrect: _same                  # Повторяем вопрос
       skip: workshop.marathon.task
       hint: _same                       # Показываем подсказку
