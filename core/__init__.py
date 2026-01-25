@@ -4,10 +4,12 @@
 Содержит:
 - helpers.py: вспомогательные функции для генерации контента
 - intent.py: распознавание намерений пользователя
+- machine.py: State Machine диспетчер
 - router.py: маршрутизация по режимам (Марафон/Лента) - TODO
-- states.py: FSM состояния - TODO
 - scheduler.py: настройка APScheduler - TODO
 """
+
+from .machine import StateMachine
 
 from .helpers import (
     load_topic_metadata,
@@ -28,6 +30,8 @@ from .intent import (
 )
 
 __all__ = [
+    # machine
+    'StateMachine',
     # helpers
     'load_topic_metadata',
     'get_search_keys',

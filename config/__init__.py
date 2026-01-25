@@ -14,6 +14,9 @@ from .settings import (
     KNOWLEDGE_MCP_URL,
     validate_env,
 
+    # Feature flags
+    USE_STATE_MACHINE,
+
     # Логирование
     get_logger,
 
@@ -74,6 +77,7 @@ __all__ = [
     'MCP_URL',
     'KNOWLEDGE_MCP_URL',
     'validate_env',
+    'USE_STATE_MACHINE',
     'get_logger',
     'MOSCOW_TZ',
     'BASE_DIR',
