@@ -1948,10 +1948,7 @@ async def cb_later(callback: CallbackQuery):
 @router.message(Command("progress"))
 async def cmd_progress(message: Message):
     """Короткий отчёт прогресса за текущую неделю"""
-    from db.queries.answers import (
-        get_weekly_marathon_stats, get_weekly_feed_stats,
-        get_work_products_by_day
-    )
+    from db.queries.answers import get_weekly_marathon_stats, get_weekly_feed_stats
     from db.queries.activity import get_activity_stats
 
     intern = await get_intern(message.chat.id)
@@ -1966,51 +1963,21 @@ async def cmd_progress(message: Message):
         activity_stats = await get_activity_stats(chat_id)
         marathon_stats = await get_weekly_marathon_stats(chat_id)
         feed_stats = await get_weekly_feed_stats(chat_id)
-        wp_by_day = await get_work_products_by_day(chat_id, TOPICS)
     except Exception as e:
         logger.error(f"Ошибка получения статистики для {chat_id}: {e}")
         activity_stats = {'days_active_this_week': 0}
         marathon_stats = {'work_products': 0}
         feed_stats = {'digests': 0, 'fixations': 0}
-        wp_by_day = {}
 
     # Общие данные
     days_active_week = activity_stats.get('days_active_this_week', 0)
 
     # Марафон
     done = len(intern['completed_topics'])
-    total = get_total_topics()
     marathon_day = get_marathon_day(intern)
-    days_progress = get_days_progress(intern['completed_topics'], marathon_day)
 
-    # Формируем прогресс по дням (в обратном порядке, от текущего к первому)
-    days_to_show = []
-    for d in days_progress:
-        day_num = d['day']
-        if day_num > marathon_day + 1:
-            break
-        days_to_show.append(d)
-
-    days_text = ""
-    for d in reversed(days_to_show):  # Обратный порядок
-        day_num = d['day']
-        wp_count = wp_by_day.get(day_num, 0)
-
-        if d['status'] == 'completed':
-            emoji = "✅"
-            wp_text = f" | РП: {wp_count}" if wp_count > 0 else ""
-        elif d['status'] == 'in_progress':
-            emoji = "🔄"
-            wp_text = f" | РП: {wp_count}" if wp_count > 0 else ""
-        elif d['status'] == 'available':
-            emoji = "📍"
-            wp_text = ""
-        else:
-            emoji = "🔒"
-            wp_text = ""
-
-        status_text = f"{d['completed']}/{d['total']}" if d['status'] != 'locked' else "—/2"
-        days_text += f"   {emoji} День {day_num}: {status_text}{wp_text}\n"
+    # Общие РП за неделю
+    total_wp_week = marathon_stats.get('work_products', 0)
 
     # Лента - получаем темы
     try:
@@ -2027,12 +1994,12 @@ async def cmd_progress(message: Message):
     total_wp_week = marathon_stats.get('work_products', 0)
 
     text = f"📊 *Прогресс: {intern['name']}*\n\n"
-    text += f"Активных дней за неделю (Марафон+Лента): {days_active_week}\n\n"
+    text += f"📈 Активных дней за неделю (Марафон+Лента): {days_active_week}\n\n"
 
     # Марафон
-    text += f"🏃 *Марафон* (день {marathon_day}/{MARATHON_DAYS})\n"
+    text += f"🏃 *Марафон*\n"
+    text += f"День {marathon_day}/{MARATHON_DAYS}\n"
     text += f"Пройдено тем: {done}. Рабочих продуктов: {total_wp_week}\n\n"
-    text += f"📋 По дням:\n{days_text}\n"
 
     # Лента
     text += f"📚 *Лента*\n"
@@ -3091,7 +3058,7 @@ async def on_skip_practice(callback: CallbackQuery, state: FSMContext):
 
 # --- Отправка темы ---
 
-async def send_topic(chat_id: int, state: FSMContext, bot: Bot):
+async def send_topic(chat_id: int, state: Optional[FSMContext], bot: Bot):
     intern = await get_intern(chat_id)
     marathon_day = get_marathon_day(intern)
 
@@ -3204,7 +3171,7 @@ async def send_topic(chat_id: int, state: FSMContext, bot: Bot):
         await send_practice_topic(chat_id, topic, intern, state, bot)
 
 
-async def send_theory_topic(chat_id: int, topic: dict, intern: dict, state: FSMContext, bot: Bot):
+async def send_theory_topic(chat_id: int, topic: dict, intern: dict, state: Optional[FSMContext], bot: Bot):
     """Отправка теоретической темы"""
     marathon_day = get_marathon_day(intern)
     topic_day = topic.get('day', marathon_day)
@@ -3235,7 +3202,8 @@ async def send_theory_topic(chat_id: int, topic: dict, intern: dict, state: FSMC
 
     # ВАЖНО: Устанавливаем состояние ДО отправки сообщения
     # чтобы избежать гонки, когда пользователь отвечает быстрее, чем сохраняется состояние
-    await state.set_state(LearningStates.waiting_for_answer)
+    if state:
+        await state.set_state(LearningStates.waiting_for_answer)
 
     # Вопрос отдельным сообщением с подсказкой о состоянии
     await bot.send_message(
@@ -3250,7 +3218,7 @@ async def send_theory_topic(chat_id: int, topic: dict, intern: dict, state: FSMC
     )
 
 
-async def send_practice_topic(chat_id: int, topic: dict, intern: dict, state: FSMContext, bot: Bot):
+async def send_practice_topic(chat_id: int, topic: dict, intern: dict, state: Optional[FSMContext], bot: Bot):
     """Отправка практической темы"""
     marathon_day = get_marathon_day(intern)
     topic_day = topic.get('day', marathon_day)
@@ -3291,7 +3259,8 @@ async def send_practice_topic(chat_id: int, topic: dict, intern: dict, state: FS
 
     # ВАЖНО: Устанавливаем состояние ДО отправки сообщения
     # чтобы избежать гонки, когда пользователь отвечает быстрее, чем сохраняется состояние
-    await state.set_state(LearningStates.waiting_for_work_product)
+    if state:
+        await state.set_state(LearningStates.waiting_for_work_product)
 
     # Запрос рабочего продукта с подсказкой о состоянии
     await bot.send_message(
