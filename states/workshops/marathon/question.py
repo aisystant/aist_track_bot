@@ -1,7 +1,7 @@
 """
 Стейт: Вопрос урока Марафона.
 
-Вход: после показа урока (workshop.marathon.day)
+Вход: после показа урока (workshop.marathon.lesson)
 Выход:
   - workshop.marathon.bonus (если bloom_level >= 2)
   - workshop.marathon.task (если bloom_level == 1 или пропуск)

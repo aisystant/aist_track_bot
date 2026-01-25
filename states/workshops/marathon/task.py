@@ -2,7 +2,7 @@
 Стейт: Практическое задание Марафона.
 
 Вход: после вопроса урока (или бонусного вопроса)
-Выход: workshop.marathon.day (следующий день)
+Выход: workshop.marathon.lesson (следующий урок)
 """
 
 from typing import Optional

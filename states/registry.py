@@ -19,7 +19,7 @@ from states.common import StartState, ErrorState, ModeSelectState
 
 # Марафон (полностью реализовано)
 from states.workshops.marathon import (
-    MarathonDayState,
+    MarathonLessonState,
     MarathonQuestionState,
     MarathonBonusState,
     MarathonTaskState,
@@ -64,7 +64,7 @@ def register_all_states(
         ModeSelectState(*args),
 
         # Marathon стейты (полностью реализовано)
-        MarathonDayState(*args),
+        MarathonLessonState(*args),
         MarathonQuestionState(*args),
         MarathonBonusState(*args),
         MarathonTaskState(*args),
@@ -99,7 +99,7 @@ def get_available_states() -> list[str]:
         "common.settings",
 
         # Marathon (Неделя 2)
-        "workshop.marathon.day",
+        "workshop.marathon.lesson",
         "workshop.marathon.question",
         "workshop.marathon.bonus",
         "workshop.marathon.task",

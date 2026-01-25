@@ -1,5 +1,5 @@
 """
-Стейт: День Марафона (показ урока).
+Стейт: Урок Марафона.
 
 Вход: из common.mode_select (выбор "Марафон") или после завершения задания
 Выход: workshop.marathon.question (после показа урока)
@@ -14,15 +14,15 @@ from locales import t
 from db.queries import get_intern, update_intern
 
 
-class MarathonDayState(BaseState):
+class MarathonLessonState(BaseState):
     """
-    Стейт показа урока текущего дня Марафона.
+    Стейт показа урока Марафона.
 
     Показывает теоретический материал и переходит к вопросу.
     """
 
-    name = "workshop.marathon.day"
-    display_name = {"ru": "День Марафона", "en": "Marathon Day"}
+    name = "workshop.marathon.lesson"
+    display_name = {"ru": "Урок Марафона", "en": "Marathon Lesson"}
     allow_global = ["consultant", "notes"]
 
     def _get_lang(self, user) -> str:
