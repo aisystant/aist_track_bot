@@ -1332,6 +1332,17 @@ def get_topic(index: int) -> Optional[dict]:
     """Получить тему по индексу"""
     return TOPICS[index] if index < len(TOPICS) else None
 
+def get_topic_title(topic: dict, lang: str = 'ru') -> str:
+    """Получить название темы на нужном языке.
+
+    Ищет title_{lang} в topic, если нет - возвращает title (русский).
+    """
+    if lang != 'ru':
+        localized_key = f'title_{lang}'
+        if localized_key in topic:
+            return topic[localized_key]
+    return topic.get('title', '')
+
 def get_total_topics() -> int:
     """Получить общее количество тем"""
     return len(TOPICS)
@@ -2962,19 +2973,17 @@ async def on_bonus_answer(message: Message, state: FSMContext, bot: Bot):
 async def on_skip_topic(callback: CallbackQuery, state: FSMContext):
     """Пропуск теоретической темы без ответа"""
     intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru') if intern else 'ru'
 
     next_index = intern['current_topic_index'] + 1
     await update_intern(callback.message.chat.id, current_topic_index=next_index)
 
     topic = get_topic(intern['current_topic_index'])
-    topic_title = topic['title'] if topic else "тема"
+    topic_title = get_topic_title(topic, lang) if topic else t('marathon.topic_default', lang)
 
-    await callback.answer("Тема пропущена")
+    await callback.answer(t('marathon.topic_skipped', lang))
     await callback.message.edit_text(
-        f"⏭ *Тема пропущена:* {topic_title}\n\n"
-        f"_Пропущенные темы не засчитываются в прогресс._\n\n"
-        f"/learn — следующая тема\n"
-        f"/progress — посмотреть прогресс",
+        t('marathon.topic_skipped_message', lang, title=topic_title),
         parse_mode="Markdown"
     )
     await state.clear()
