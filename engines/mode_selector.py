@@ -35,40 +35,39 @@ async def cmd_mode(message: Message):
     intern = await get_intern(chat_id)
 
     if not intern:
-        await message.answer(
-            "Сначала пройдите регистрацию: /start"
-        )
+        await message.answer(t('progress.first_start', 'ru'))
         return
 
+    lang = intern.get('language', 'ru') or 'ru'
     current_mode = intern.get('mode', Mode.MARATHON)
     marathon_status = intern.get('marathon_status', MarathonStatus.NOT_STARTED)
     feed_status = intern.get('feed_status', FeedStatus.NOT_STARTED)
 
     # Определяем текущий статус
-    marathon_info = get_marathon_status_text(intern)
-    feed_info = get_feed_status_text(intern)
+    marathon_info = get_marathon_status_text(intern, lang)
+    feed_info = get_feed_status_text(intern, lang)
 
     text = (
-        "🎯 *Выберите режим обучения*\n\n"
-        f"*Текущий режим:* {get_mode_name(current_mode)}\n\n"
+        f"🎯 *{t('modes.select_title', lang)}*\n\n"
+        f"*{t('modes.current_mode', lang)}:* {get_mode_name(current_mode, lang)}\n\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "📚 *Марафон* — 14-дневный курс\n"
+        f"📚 *{t('modes.marathon_name', lang)}* — {t('modes.marathon_14day', lang)}\n"
         f"{marathon_info}\n"
-        "_Каждый день изучаете две темы: теория + практика_\n\n"
+        f"_{t('modes.marathon_daily_desc', lang)}_\n\n"
         "━━━━━━━━━━━━━━━━━━\n\n"
-        "🌊 *Лента* — бесконечный режим\n"
+        f"🌊 *{t('modes.feed_name', lang)}* — {t('modes.feed_infinite', lang)}\n"
         f"{feed_info}\n"
-        "_ИИ предлагает темы, вы выбираете что изучать_\n"
+        f"_{t('modes.feed_ai_desc', lang)}_\n"
     )
 
     # Кнопки выбора режима
     buttons = [
         [InlineKeyboardButton(
-            text="📚 Марафон" + (" ✓" if current_mode == Mode.MARATHON else ""),
+            text=f"📚 {t('modes.marathon_name', lang)}" + (" ✓" if current_mode == Mode.MARATHON else ""),
             callback_data="mode_marathon"
         )],
         [InlineKeyboardButton(
-            text="🌊 Лента" + (" ✓" if current_mode == Mode.FEED else ""),
+            text=f"🌊 {t('modes.feed_name', lang)}" + (" ✓" if current_mode == Mode.FEED else ""),
             callback_data="mode_feed"
         )],
     ]
@@ -76,7 +75,7 @@ async def cmd_mode(message: Message):
     # Если оба режима активны, показываем статус "Оба"
     if current_mode == Mode.BOTH:
         buttons.append([InlineKeyboardButton(
-            text="📚🌊 Оба режима ✓",
+            text=f"📚🌊 {t('modes.both_name', lang)} ✓",
             callback_data="mode_both"
         )])
 
@@ -121,20 +120,21 @@ async def select_marathon(callback: CallbackQuery):
     except Exception as e:
         import traceback
         logger.error(f"Ошибка в select_marathon: {e}\n{traceback.format_exc()}")
-        await callback.answer("Произошла ошибка. Попробуйте ещё раз.", show_alert=True)
+        await callback.answer(t('modes.error_occurred', 'ru'), show_alert=True)
 
 
 async def show_marathon_activated(message, intern: dict, feed_paused: bool = False, edit: bool = False):
     """Показывает сообщение об активации Марафона в стиле Ленты"""
     from db.queries.users import moscow_today
 
+    lang = intern.get('language', 'ru') or 'ru'
+
     # Настройки
     schedule_time = intern.get('schedule_time', '09:00')
     schedule_time_2 = intern.get('schedule_time_2')
     study_duration = intern.get('study_duration', 15)
     bloom_level = intern.get('bloom_level', 1)
-    complexity_names = {1: "Начальный", 2: "Базовый", 3: "Продвинутый"}
-    complexity_text = complexity_names.get(bloom_level, f"Уровень {bloom_level}")
+    complexity_text = get_complexity_name(bloom_level, lang)
 
     # Прогресс
     completed = len(intern.get('completed_topics', []))
@@ -150,26 +150,25 @@ async def show_marathon_activated(message, intern: dict, feed_paused: bool = Fal
         marathon_day = 1
 
     # Формируем текст
-    text = "✅ *Режим Марафон активирован!*\n\n"
-    text += f"День {marathon_day} из 14 | {completed}/28 тем\n\n"
-    text += "*Ваши настройки:*\n"
-    text += f"⏰ Время: {schedule_time}\n"
-    text += f"📖 На чтение: {study_duration} мин\n"
-    text += f"📊 Сложность: {complexity_text}\n"
+    text = f"✅ *{t('modes.marathon_activated', lang)}*\n\n"
+    text += f"{t('progress.day', lang, day=marathon_day, total=14)} | {completed}/28 {t('progress.topics_done', lang).lower()}\n\n"
+    text += f"*{t('modes.your_settings', lang)}:*\n"
+    text += f"⏰ {t('modes.time', lang)}: {schedule_time}\n"
+    text += f"📖 {t('modes.reading_time', lang)}: {study_duration} {t('modes.minutes', lang)}\n"
+    text += f"📊 {t('modes.complexity', lang)}: {complexity_text}\n"
 
     if schedule_time_2:
-        text += f"⏰ Доп.напоминание: {schedule_time_2}\n"
+        text += f"⏰ {t('modes.additional_reminder', lang)}: {schedule_time_2}\n"
 
     if feed_paused:
-        text += "\n_Лента на паузе. Вернуться: /mode_"
+        text += f"\n_{t('modes.feed_paused', lang)}_"
 
     # Кнопки
-    lang = intern.get('language', 'ru') or 'ru'
     buttons = [
         [InlineKeyboardButton(text=f"📚 {t('buttons.continue_learning', lang)}", callback_data="learn")],
-        [InlineKeyboardButton(text="📝 Обновить данные", callback_data="marathon_go_update")],
-        [InlineKeyboardButton(text="⏰ Напоминания", callback_data="marathon_reminders_input")],
-        [InlineKeyboardButton(text="🔄 Сбросить марафон", callback_data="marathon_reset_confirm")],
+        [InlineKeyboardButton(text=f"📝 {t('buttons.update_data', lang)}", callback_data="marathon_go_update")],
+        [InlineKeyboardButton(text=f"⏰ {t('buttons.reminders', lang)}", callback_data="marathon_reminders_input")],
+        [InlineKeyboardButton(text=f"🔄 {t('buttons.reset_marathon', lang)}", callback_data="marathon_reset_confirm")],
     ]
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -192,7 +191,7 @@ async def show_feed_activated(message, intern: dict, marathon_paused: bool = Fal
     lang = intern.get('language', 'ru') or 'ru'
 
     # Получаем настройки
-    settings_text = get_user_settings_text(intern)
+    settings_text = get_user_settings_text(intern, lang)
 
     # Проверяем, есть ли активная неделя
     from .feed.engine import FeedEngine
@@ -201,18 +200,18 @@ async def show_feed_activated(message, intern: dict, marathon_paused: bool = Fal
     has_active_week = status.get('has_week') and status.get('week_status') == 'active'
 
     # Формируем текст
-    text = "✅ *Режим Лента активирован!*\n\n"
-    text += f"*Ваши настройки:*\n{settings_text}\n"
+    text = f"✅ *{t('modes.feed_activated', lang)}*\n\n"
+    text += f"*{t('modes.your_settings', lang)}:*\n{settings_text}\n"
 
     if has_active_week:
         topics = status.get('topics', [])
         if topics:
-            text += "\n*Ваши темы:*\n"
+            text += f"\n*{t('modes.your_topics', lang)}:*\n"
             for i, topic in enumerate(topics, 1):
                 text += f"{i}. {topic}\n"
 
     if marathon_paused:
-        text += "\n_Марафон на паузе. Вернуться: /mode_"
+        text += f"\n_{t('modes.marathon_paused', lang)}_"
 
     # Кнопки
     buttons = []
@@ -232,8 +231,8 @@ async def show_feed_activated(message, intern: dict, marathon_paused: bool = Fal
             callback_data="feed_start_topics"
         )])
 
-    buttons.append([InlineKeyboardButton(text="📝 Обновить данные", callback_data="feed_go_update")])
-    buttons.append([InlineKeyboardButton(text="⏰ Напоминания", callback_data="feed_reminders_input")])
+    buttons.append([InlineKeyboardButton(text=f"📝 {t('buttons.update_data', lang)}", callback_data="feed_go_update")])
+    buttons.append([InlineKeyboardButton(text=f"⏰ {t('buttons.reminders', lang)}", callback_data="feed_reminders_input")])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -246,9 +245,11 @@ async def show_feed_activated(message, intern: dict, marathon_paused: bool = Fal
 @mode_router.callback_query(F.data == "marathon_continue")
 async def marathon_continue(callback: CallbackQuery):
     """Продолжить марафон (legacy)"""
+    intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru') if intern else 'ru'
     await callback.message.edit_text(
-        "✅ *Режим Марафон*\n\n"
-        "Используйте /learn для продолжения обучения.",
+        f"✅ *{t('modes.marathon_name', lang)}*\n\n"
+        f"{t('modes.use_learn', lang)}",
         parse_mode="Markdown"
     )
     await callback.answer()
@@ -271,6 +272,7 @@ async def marathon_set_date(callback: CallbackQuery):
 
     chat_id = callback.message.chat.id
     intern = await get_intern(chat_id)
+    lang = intern.get('language', 'ru') or 'ru'
 
     start_date = intern.get('marathon_start_date')
     today = moscow_today()
@@ -283,14 +285,14 @@ async def marathon_set_date(callback: CallbackQuery):
         current_date_str = start_date.strftime('%d.%m.%Y')
     else:
         marathon_day = 0
-        current_date_str = "не установлена"
+        current_date_str = t('modes.start_date_not_set', lang)
 
     completed = len(intern.get('completed_topics', []))
 
-    text = "🗓 *Дата старта марафона*\n\n"
-    text += f"Текущая: {current_date_str}"
+    text = f"🗓 *{t('modes.start_date', lang)}*\n\n"
+    text += f"{t('modes.current', lang)}: {current_date_str}"
     if start_date:
-        text += f" (день {marathon_day})"
+        text += f" ({t('progress.day', lang, day=marathon_day, total=14)})"
     text += "\n\n"
 
     # Кнопки
@@ -301,23 +303,23 @@ async def marathon_set_date(callback: CallbackQuery):
     day_after = today + timedelta(days=2)
 
     buttons.append([InlineKeyboardButton(
-        text=f"📅 Завтра ({tomorrow.strftime('%d.%m')})",
+        text=f"📅 {t('modes.tomorrow', lang)} ({tomorrow.strftime('%d.%m')})",
         callback_data="marathon_date_tomorrow"
     )])
     buttons.append([InlineKeyboardButton(
-        text=f"📅 Послезавтра ({day_after.strftime('%d.%m')})",
+        text=f"📅 {t('modes.day_after_tomorrow', lang)} ({day_after.strftime('%d.%m')})",
         callback_data="marathon_date_day_after"
     )])
 
     # Кнопка сброса (если есть прогресс)
     if completed > 0:
         buttons.append([InlineKeyboardButton(
-            text="🔄 Сбросить марафон",
+            text=f"🔄 {t('buttons.reset_marathon', lang)}",
             callback_data="marathon_reset_confirm"
         )])
 
     buttons.append([InlineKeyboardButton(
-        text="« Назад",
+        text=t('buttons.back', lang),
         callback_data="marathon_settings_back"
     )])
 
@@ -336,10 +338,11 @@ async def marathon_date_tomorrow(callback: CallbackQuery):
     new_date = today + timedelta(days=1)
 
     await update_intern(callback.message.chat.id, marathon_start_date=new_date)
-    await callback.answer(f"Дата старта: {new_date.strftime('%d.%m.%Y')}")
 
     # Возвращаемся к настройкам
     intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru') or 'ru'
+    await callback.answer(t('modes.start_date_set', lang, date=new_date.strftime('%d.%m.%Y')))
     await show_marathon_settings(callback.message, intern, edit=True)
 
 
@@ -353,10 +356,11 @@ async def marathon_date_day_after(callback: CallbackQuery):
     new_date = today + timedelta(days=2)
 
     await update_intern(callback.message.chat.id, marathon_start_date=new_date)
-    await callback.answer(f"Дата старта: {new_date.strftime('%d.%m.%Y')}")
 
     # Возвращаемся к настройкам
     intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru') or 'ru'
+    await callback.answer(t('modes.start_date_set', lang, date=new_date.strftime('%d.%m.%Y')))
     await show_marathon_settings(callback.message, intern, edit=True)
 
 
@@ -368,19 +372,20 @@ async def marathon_reset_confirm(callback: CallbackQuery):
     try:
         chat_id = callback.message.chat.id
         intern = await get_intern(chat_id)
+        lang = intern.get('language', 'ru') or 'ru'
 
         completed = len(intern.get('completed_topics', []))
 
-        text = "⚠️ *Сбросить марафон?*\n\n"
-        text += "Будет сброшено:\n"
-        text += f"• {completed} пройденных тем\n"
-        text += "• Весь прогресс по дням\n\n"
-        text += "_Статистика Ленты сохранится._"
+        text = f"⚠️ *{t('modes.reset_marathon_title', lang)}*\n\n"
+        text += f"{t('modes.will_be_reset', lang)}:\n"
+        text += f"• {completed} {t('modes.topics_passed', lang)}\n"
+        text += f"• {t('modes.all_progress', lang)}\n\n"
+        text += f"_{t('modes.feed_stats_kept', lang)}_"
 
         buttons = [
             [
-                InlineKeyboardButton(text="🔄 Да, сбросить", callback_data="marathon_reset_do"),
-                InlineKeyboardButton(text="❌ Отмена", callback_data="marathon_settings_back")
+                InlineKeyboardButton(text=f"🔄 {t('modes.yes_reset', lang)}", callback_data="marathon_reset_do"),
+                InlineKeyboardButton(text=f"❌ {t('modes.cancel', lang)}", callback_data="marathon_settings_back")
             ]
         ]
 
@@ -391,7 +396,7 @@ async def marathon_reset_confirm(callback: CallbackQuery):
     except Exception as e:
         import traceback
         logger.error(f"Ошибка в marathon_reset_confirm: {e}\n{traceback.format_exc()}")
-        await callback.answer("Произошла ошибка", show_alert=True)
+        await callback.answer(t('modes.error_occurred', 'ru'), show_alert=True)
 
 
 @mode_router.callback_query(F.data == "marathon_reset_do")
@@ -412,12 +417,15 @@ async def marathon_reset_do(callback: CallbackQuery):
         topics_at_current_bloom=0,
     )
 
-    await callback.answer("Марафон сброшен!")
+    intern = await get_intern(chat_id)
+    lang = intern.get('language', 'ru') or 'ru'
+
+    await callback.answer(t('modes.marathon_reset', lang))
 
     await callback.message.edit_text(
-        "✅ *Марафон сброшен!*\n\n"
-        f"Новая дата старта: {today.strftime('%d.%m.%Y')}\n\n"
-        "Используйте /learn для начала обучения.",
+        f"✅ *{t('modes.marathon_reset', lang)}*\n\n"
+        f"{t('modes.new_start_date', lang)}: {today.strftime('%d.%m.%Y')}\n\n"
+        f"{t('modes.use_learn_start', lang)}",
         parse_mode="Markdown"
     )
 
@@ -485,24 +493,25 @@ async def marathon_reminders_input(callback: CallbackQuery, state: FSMContext):
     """Запрос ввода времени напоминаний"""
     chat_id = callback.message.chat.id
     intern = await get_intern(chat_id)
+    lang = intern.get('language', 'ru') or 'ru'
 
     schedule_time = intern.get('schedule_time', '09:00')
     schedule_time_2 = intern.get('schedule_time_2')
 
-    text = "⏰ *Напоминания*\n\n"
-    text += f"Сейчас: {schedule_time}"
+    text = f"⏰ *{t('modes.reminders_title', lang)}*\n\n"
+    text += f"{t('modes.current_time', lang)}: {schedule_time}"
     if schedule_time_2:
         text += f", {schedule_time_2}"
     text += "\n\n"
-    text += "Введите время в формате ЧЧ:ММ\n"
-    text += "Например: `07:30` или `18:00`\n\n"
-    text += "_Для двух напоминаний введите через запятую:_\n"
-    text += "_Например: `07:00, 19:00`_"
+    text += f"{t('modes.enter_time_format', lang)}\n"
+    text += f"{t('modes.time_example', lang)}\n\n"
+    text += f"_{t('modes.two_reminders_hint', lang)}_\n"
+    text += f"_{t('modes.two_reminders_example', lang)}_"
 
     # Устанавливаем FSM-состояние ожидания ввода времени
     await state.set_state(MarathonSettingsStates.waiting_for_time)
 
-    buttons = [[InlineKeyboardButton(text="« Назад", callback_data="marathon_cancel_input")]]
+    buttons = [[InlineKeyboardButton(text=t('buttons.back', lang), callback_data="marathon_cancel_input")]]
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
@@ -526,6 +535,10 @@ async def on_marathon_time_input(message: Message, state: FSMContext):
     chat_id = message.chat.id
     text = message.text.strip()
 
+    # Получаем язык пользователя
+    intern = await get_intern(chat_id)
+    lang = intern.get('language', 'ru') if intern else 'ru'
+
     # Регулярное выражение для времени ЧЧ:ММ
     time_pattern = r'^\d{1,2}:\d{2}$'
 
@@ -546,8 +559,8 @@ async def on_marathon_time_input(message: Message, state: FSMContext):
 
     if not valid_times:
         await message.answer(
-            "❌ Неверный формат времени.\n\n"
-            "Введите в формате ЧЧ:ММ, например: `09:00` или `07:30, 19:00`",
+            f"❌ {t('modes.invalid_time_format', lang)}\n\n"
+            f"{t('modes.enter_time_example', lang)}",
             parse_mode="Markdown"
         )
         return
@@ -566,9 +579,9 @@ async def on_marathon_time_input(message: Message, state: FSMContext):
 
     # Показываем подтверждение
     if schedule_time_2:
-        confirm_text = f"✅ Напоминания установлены: {schedule_time}, {schedule_time_2}"
+        confirm_text = f"✅ {t('modes.reminders_set', lang, time1=schedule_time, time2=schedule_time_2)}"
     else:
-        confirm_text = f"✅ Напоминание установлено: {schedule_time}"
+        confirm_text = f"✅ {t('modes.reminder_set', lang, time=schedule_time)}"
 
     await message.answer(confirm_text)
 
@@ -645,10 +658,11 @@ async def marathon_reminder_2_add(callback: CallbackQuery):
 async def marathon_reminder_2_remove(callback: CallbackQuery):
     """Удалить второе напоминание"""
     await update_intern(callback.message.chat.id, schedule_time_2=None)
-    await callback.answer("Второе напоминание удалено")
 
     # Возвращаемся к настройкам напоминаний
     intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru') or 'ru'
+    await callback.answer(t('modes.second_reminder_removed', lang))
     await marathon_set_reminders(callback)
 
 
@@ -772,7 +786,7 @@ async def select_feed(callback: CallbackQuery):
         has_marathon_progress = len(intern.get('completed_topics', [])) > 0 or intern.get('current_topic_index', 0) > 0
 
         # Получаем настройки пользователя
-        settings_text = get_user_settings_text(intern)
+        settings_text = get_user_settings_text(intern, lang)
 
         # Проверяем, есть ли активная неделя
         from .feed.engine import FeedEngine
@@ -781,14 +795,14 @@ async def select_feed(callback: CallbackQuery):
         has_active_week = status.get('has_week') and status.get('week_status') == 'active'
 
         # Формируем текст сообщения
-        text = "✅ *Режим Лента активирован!*\n\n"
-        text += f"*Ваши настройки:*\n{settings_text}\n"
+        text = f"✅ *{t('modes.feed_activated', lang)}*\n\n"
+        text += f"*{t('modes.your_settings', lang)}:*\n{settings_text}\n"
 
         if has_active_week:
             # Есть активная неделя — показываем темы
             topics = status.get('topics', [])
             if topics:
-                text += "\n*Ваши темы:*\n"
+                text += f"\n*{t('modes.your_topics', lang)}:*\n"
                 for i, topic in enumerate(topics, 1):
                     text += f"{i}. {topic}\n"
 
@@ -800,7 +814,7 @@ async def select_feed(callback: CallbackQuery):
                 marathon_status=MarathonStatus.PAUSED,
                 feed_status=FeedStatus.ACTIVE,
             )
-            text += "\n\n_Марафон на паузе. Вернуться: /mode_"
+            text += f"\n\n_{t('modes.marathon_paused', lang)}_"
         else:
             await update_intern(chat_id,
                 mode=Mode.FEED,
@@ -827,8 +841,8 @@ async def select_feed(callback: CallbackQuery):
             )])
 
         # Общие кнопки настроек
-        buttons.append([InlineKeyboardButton(text="📝 Обновить данные", callback_data="feed_go_update")])
-        buttons.append([InlineKeyboardButton(text="⏰ Напоминания", callback_data="feed_reminders_input")])
+        buttons.append([InlineKeyboardButton(text=f"📝 {t('buttons.update_data', lang)}", callback_data="feed_go_update")])
+        buttons.append([InlineKeyboardButton(text=f"⏰ {t('buttons.reminders', lang)}", callback_data="feed_reminders_input")])
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -838,7 +852,7 @@ async def select_feed(callback: CallbackQuery):
     except Exception as e:
         import traceback
         logger.error(f"Ошибка в select_feed: {e}\n{traceback.format_exc()}")
-        await callback.answer("Произошла ошибка. Попробуйте ещё раз.", show_alert=True)
+        await callback.answer(t('errors.try_again', lang), show_alert=True)
 
 
 # ==================== КНОПКИ ЛЕНТЫ ====================
@@ -898,26 +912,27 @@ async def feed_reminders_input(callback: CallbackQuery, state: FSMContext):
     """Запрос ввода времени напоминаний для Ленты"""
     chat_id = callback.message.chat.id
     intern = await get_intern(chat_id)
+    lang = intern.get('language', 'ru') or 'ru'
 
     schedule_time = intern.get('schedule_time', '09:00')
     schedule_time_2 = intern.get('schedule_time_2')
 
-    text = "⏰ *Напоминания*\n\n"
-    text += f"Сейчас: {schedule_time}"
+    text = f"⏰ *{t('modes.reminders_title', lang)}*\n\n"
+    text += f"{t('modes.current_time', lang)}: {schedule_time}"
     if schedule_time_2:
         text += f", {schedule_time_2}"
     text += "\n\n"
-    text += "Введите время в формате ЧЧ:ММ\n"
-    text += "Например: `07:30` или `18:00`\n\n"
-    text += "_Для двух напоминаний введите через запятую:_\n"
-    text += "_Например: `07:00, 19:00`_"
+    text += f"{t('modes.enter_time_format', lang)}\n"
+    text += f"{t('modes.time_example', lang)}\n\n"
+    text += f"_{t('modes.two_reminders_hint', lang)}_\n"
+    text += f"_{t('modes.two_reminders_example', lang)}_"
 
     # Устанавливаем FSM-состояние (используем то же что и для марафона)
     await state.set_state(MarathonSettingsStates.waiting_for_time)
     # Сохраняем что это для ленты
     await state.update_data(return_to='feed')
 
-    buttons = [[InlineKeyboardButton(text="« Назад", callback_data="feed_cancel_input")]]
+    buttons = [[InlineKeyboardButton(text=t('buttons.back', lang), callback_data="feed_cancel_input")]]
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
 
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
@@ -932,17 +947,18 @@ async def feed_cancel_input(callback: CallbackQuery, state: FSMContext):
     await select_feed(callback)
 
 
-def get_mode_name(mode: str) -> str:
+def get_mode_name(mode: str, lang: str = 'ru') -> str:
     """Возвращает название режима"""
-    names = {
-        Mode.MARATHON: "📚 Марафон",
-        Mode.FEED: "🌊 Лента",
-        Mode.BOTH: "📚🌊 Оба режима",
-    }
-    return names.get(mode, "Не выбран")
+    if mode == Mode.MARATHON:
+        return f"📚 {t('modes.marathon_name', lang)}"
+    elif mode == Mode.FEED:
+        return f"🌊 {t('modes.feed_name', lang)}"
+    elif mode == Mode.BOTH:
+        return f"📚🌊 {t('modes.both_name', lang)}"
+    return t('modes.status_unknown', lang)
 
 
-def get_marathon_status_text(intern: dict) -> str:
+def get_marathon_status_text(intern: dict, lang: str = 'ru') -> str:
     """Возвращает текст статуса марафона"""
     status = intern.get('marathon_status', MarathonStatus.NOT_STARTED)
     completed = intern.get('completed_topics', [])
@@ -955,54 +971,57 @@ def get_marathon_status_text(intern: dict) -> str:
     has_progress = len(completed) > 0 or topic_index > 0
 
     if status == MarathonStatus.COMPLETED or (has_progress and day > 14):
-        return "✅ Завершён"
+        return f"✅ {t('modes.status_completed', lang)}"
     elif status == MarathonStatus.ACTIVE or (status == MarathonStatus.NOT_STARTED and has_progress):
-        return f"🟢 Активен (день {day}/14, пройдено {len(completed)} тем)"
+        return f"🟢 {t('modes.status_active_day', lang, day=day, total=14, done=len(completed))}"
     elif status == MarathonStatus.PAUSED:
-        return f"⏸️ На паузе (день {day}/14)"
+        return f"⏸️ {t('modes.status_paused_day', lang, day=day, total=14)}"
     elif status == MarathonStatus.NOT_STARTED:
-        return "⚪ Не начат"
-    return "⚪ Статус неизвестен"
+        return f"⚪ {t('modes.status_not_started', lang)}"
+    return f"⚪ {t('modes.status_unknown', lang)}"
 
 
-def get_feed_status_text(intern: dict) -> str:
+def get_feed_status_text(intern: dict, lang: str = 'ru') -> str:
     """Возвращает текст статуса ленты"""
     status = intern.get('feed_status', FeedStatus.NOT_STARTED)
     active_days = intern.get('active_days_total', 0)
 
     if status == FeedStatus.NOT_STARTED:
-        return "⚪ Не начата"
+        return f"⚪ {t('modes.status_not_started_f', lang)}"
     elif status == FeedStatus.ACTIVE:
-        return f"🟢 Активна (активных дней: {active_days})"
+        return f"🟢 {t('modes.status_active', lang)} ({t('modes.status_active_days', lang, days=active_days)})"
     elif status == FeedStatus.PAUSED:
-        return f"⏸️ На паузе (активных дней: {active_days})"
-    return "⚪ Статус неизвестен"
+        return f"⏸️ {t('modes.status_paused', lang)} ({t('modes.status_active_days', lang, days=active_days)})"
+    return f"⚪ {t('modes.status_unknown', lang)}"
 
 
-def get_complexity_name(level: int) -> str:
+def get_complexity_name(level: int, lang: str = 'ru') -> str:
     """Возвращает название уровня сложности"""
-    names = {
-        1: "Начальный",
-        2: "Базовый",
-        3: "Средний",
-        4: "Продвинутый",
-        5: "Экспертный",
+    key_map = {
+        1: 'modes.complexity_beginner',
+        2: 'modes.complexity_basic',
+        3: 'modes.complexity_medium',
+        4: 'modes.complexity_advanced',
+        5: 'modes.complexity_expert',
     }
-    return names.get(level, f"Уровень {level}")
+    key = key_map.get(level)
+    if key:
+        return t(key, lang)
+    return f"{t('modes.complexity', lang)} {level}"
 
 
-def get_user_settings_text(intern: dict) -> str:
+def get_user_settings_text(intern: dict, lang: str = 'ru') -> str:
     """Формирует текст с настройками пользователя"""
     schedule_time = intern.get('schedule_time', '09:00')
     schedule_time_2 = intern.get('schedule_time_2')
     study_duration = intern.get('study_duration', 15)
     complexity = intern.get('complexity_level') or intern.get('bloom_level', 1)
 
-    text = f"⏰ Время: {schedule_time}\n"
-    text += f"📖 На чтение: {study_duration} мин\n"
-    text += f"📊 Сложность: {get_complexity_name(complexity)}"
+    text = f"⏰ {t('modes.time', lang)}: {schedule_time}\n"
+    text += f"📖 {t('modes.reading_time', lang)}: {study_duration} {t('modes.minutes', lang)}\n"
+    text += f"📊 {t('modes.complexity', lang)}: {get_complexity_name(complexity, lang)}"
 
     if schedule_time_2:
-        text += f"\n⏰ Доп.напоминание: {schedule_time_2}"
+        text += f"\n⏰ {t('modes.additional_reminder', lang)}: {schedule_time_2}"
 
     return text
