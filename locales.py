@@ -349,7 +349,45 @@ TRANSLATIONS = {
         'marathon.waiting_for': 'Ожидаю',
         'marathon.work_product_name': 'название рабочего продукта (≥3 символов)',
         'marathon.answer_expected': 'ваш ответ на вопрос (≥20 символов)',
+        'marathon.answer_too_short': 'Напишите подробнее (хотя бы 2-3 предложения)',
         'marathon.question_hint': 'Чтобы задать вопрос к ИИ, начните сообщение с ?',
+        'marathon.topic_skipped': 'Тема пропущена',
+        'marathon.topic_skipped_title': 'Тема пропущена',
+        'marathon.topic_skipped_hint': 'Пропущенные темы не засчитываются в прогресс.',
+        'marathon.practice_skipped': 'Задание пропущено',
+        'marathon.practice_skipped_title': 'Задание пропущено',
+        'marathon.practice_skipped_hint': 'Пропущенные задания не засчитываются в прогресс.',
+        'marathon.wp_min_length': 'Напишите хотя бы название рабочего продукта',
+        'marathon.wp_example_text': 'например: «Список в заметках»',
+        'marathon.day_done_title': 'День {day} завершён!',
+        'marathon.theory_done': 'Теория пройдена',
+        'marathon.practice_done': 'Практика выполнена',
+        'marathon.great_work': 'Отличная работа! Возвращайтесь завтра за новыми темами.',
+
+        # Кнопки прогресса
+        'buttons.view_progress': 'Посмотреть прогресс',
+        'buttons.next_topic': 'Следующая тема',
+        'buttons.continue_learning': 'Продолжить обучение',
+
+        # Отчёт
+        'progress.wp_abbrev': 'РП',
+        'progress.lessons': 'Уроков',
+        'progress.tasks': 'Заданий',
+        'progress.work_products_count': 'Рабочих продуктов',
+        'progress.by_days': 'По дням',
+        'progress.lag': 'Отставание',
+        'progress.lag_days': '{count} дней',
+        'progress.failed_to_load': 'Не удалось загрузить полный отчёт. Попробуйте позже.',
+        'progress.use_command': 'вернуться',
+        'progress.for_updated_report': 'Для обновлённого отчёта используйте /progress',
+
+        # Обновление даты старта
+        'update.today': 'сегодня',
+        'update.tomorrow': 'завтра',
+        'update.day_after': 'послезавтра',
+        'update.start_date_updated': 'Дата старта обновлена!',
+        'update.start_date_changed': 'Дата старта марафона изменена!',
+        'update.new_date': 'Новая дата',
 
         # Лента (Feed)
         'feed.suggested_topics': 'Предлагаемые темы',
@@ -724,7 +762,45 @@ TRANSLATIONS = {
         'marathon.waiting_for': 'Waiting for',
         'marathon.work_product_name': 'work product name (≥3 chars)',
         'marathon.answer_expected': 'your answer to the question (≥20 chars)',
+        'marathon.answer_too_short': 'Please write more (at least 2-3 sentences)',
         'marathon.question_hint': 'To ask a question to AI, start your message with ?',
+        'marathon.topic_skipped': 'Topic skipped',
+        'marathon.topic_skipped_title': 'Topic skipped',
+        'marathon.topic_skipped_hint': 'Skipped topics do not count towards progress.',
+        'marathon.practice_skipped': 'Practice skipped',
+        'marathon.practice_skipped_title': 'Practice skipped',
+        'marathon.practice_skipped_hint': 'Skipped practices do not count towards progress.',
+        'marathon.wp_min_length': 'Please write at least the work product name',
+        'marathon.wp_example_text': 'e.g.: "List in notes"',
+        'marathon.day_done_title': 'Day {day} complete!',
+        'marathon.theory_done': 'Theory done',
+        'marathon.practice_done': 'Practice done',
+        'marathon.great_work': 'Great work! Come back tomorrow for new topics.',
+
+        # Progress buttons
+        'buttons.view_progress': 'View progress',
+        'buttons.next_topic': 'Next topic',
+        'buttons.continue_learning': 'Continue learning',
+
+        # Report
+        'progress.wp_abbrev': 'WP',
+        'progress.lessons': 'Lessons',
+        'progress.tasks': 'Tasks',
+        'progress.work_products_count': 'Work products',
+        'progress.by_days': 'By days',
+        'progress.lag': 'Lag',
+        'progress.lag_days': '{count} days',
+        'progress.failed_to_load': 'Failed to load full report. Try again later.',
+        'progress.use_command': 'go back',
+        'progress.for_updated_report': 'For an updated report use /progress',
+
+        # Start date update
+        'update.today': 'today',
+        'update.tomorrow': 'tomorrow',
+        'update.day_after': 'day after tomorrow',
+        'update.start_date_updated': 'Start date updated!',
+        'update.start_date_changed': 'Marathon start date changed!',
+        'update.new_date': 'New date',
 
         # Feed
         'feed.suggested_topics': 'Suggested Topics',
@@ -1099,7 +1175,45 @@ TRANSLATIONS = {
         'marathon.waiting_for': 'Esperando',
         'marathon.work_product_name': 'nombre del producto de trabajo (≥3 caracteres)',
         'marathon.answer_expected': 'tu respuesta a la pregunta (≥20 caracteres)',
+        'marathon.answer_too_short': 'Por favor, escribe más (al menos 2-3 oraciones)',
         'marathon.question_hint': 'Para hacer una pregunta a la IA, comienza tu mensaje con ?',
+        'marathon.topic_skipped': 'Tema omitido',
+        'marathon.topic_skipped_title': 'Tema omitido',
+        'marathon.topic_skipped_hint': 'Los temas omitidos no cuentan para el progreso.',
+        'marathon.practice_skipped': 'Práctica omitida',
+        'marathon.practice_skipped_title': 'Práctica omitida',
+        'marathon.practice_skipped_hint': 'Las prácticas omitidas no cuentan para el progreso.',
+        'marathon.wp_min_length': 'Por favor, escribe al menos el nombre del producto de trabajo',
+        'marathon.wp_example_text': 'por ejemplo: «Lista en notas»',
+        'marathon.day_done_title': '¡Día {day} completado!',
+        'marathon.theory_done': 'Teoría hecha',
+        'marathon.practice_done': 'Práctica hecha',
+        'marathon.great_work': '¡Buen trabajo! Vuelve mañana para nuevos temas.',
+
+        # Botones de progreso
+        'buttons.view_progress': 'Ver progreso',
+        'buttons.next_topic': 'Siguiente tema',
+        'buttons.continue_learning': 'Continuar aprendiendo',
+
+        # Informe
+        'progress.wp_abbrev': 'PT',
+        'progress.lessons': 'Lecciones',
+        'progress.tasks': 'Tareas',
+        'progress.work_products_count': 'Productos de trabajo',
+        'progress.by_days': 'Por días',
+        'progress.lag': 'Retraso',
+        'progress.lag_days': '{count} días',
+        'progress.failed_to_load': 'No se pudo cargar el informe completo. Inténtalo más tarde.',
+        'progress.use_command': 'volver',
+        'progress.for_updated_report': 'Para un informe actualizado usa /progress',
+
+        # Actualización de fecha de inicio
+        'update.today': 'hoy',
+        'update.tomorrow': 'mañana',
+        'update.day_after': 'pasado mañana',
+        'update.start_date_updated': '¡Fecha de inicio actualizada!',
+        'update.start_date_changed': '¡Fecha de inicio del maratón cambiada!',
+        'update.new_date': 'Nueva fecha',
 
         # Feed
         'feed.suggested_topics': 'Temas Sugeridos',

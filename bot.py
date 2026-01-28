@@ -1878,10 +1878,11 @@ async def on_start_date(callback: CallbackQuery, state: FSMContext):
 async def on_confirm(callback: CallbackQuery, state: FSMContext):
     await update_intern(callback.message.chat.id, onboarding_completed=True)
     intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru') or 'ru'
     marathon_day = get_marathon_day(intern)
     start_date = intern.get('marathon_start_date')
 
-    await callback.answer("Сохранено!")
+    await callback.answer(t('update.saved', lang))
 
     # Определяем, когда старт
     if start_date:
@@ -1928,8 +1929,9 @@ async def on_restart(callback: CallbackQuery, state: FSMContext):
 @router.message(Command("learn"))
 async def cmd_learn(message: Message, state: FSMContext):
     intern = await get_intern(message.chat.id)
+    lang = intern.get('language', 'ru') or 'ru'
     if not intern['onboarding_completed']:
-        await message.answer("Сначала /start")
+        await message.answer(t('progress.first_start', lang))
         return
     await send_topic(message.chat.id, state, message.bot)
 
@@ -2489,26 +2491,28 @@ async def on_upd_marathon_start(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(UpdateStates.updating_marathon_start, F.data.startswith("start_"))
 async def on_save_marathon_start(callback: CallbackQuery, state: FSMContext):
+    intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru') or 'ru'
     today = moscow_today()
 
     if callback.data == "start_today":
         start_date = today
-        date_text = "сегодня"
+        date_text = t('update.today', lang)
     elif callback.data == "start_tomorrow":
         start_date = today + timedelta(days=1)
-        date_text = "завтра"
+        date_text = t('update.tomorrow', lang)
     else:  # start_day_after
         start_date = today + timedelta(days=2)
-        date_text = "послезавтра"
+        date_text = t('update.day_after', lang)
 
     await update_intern(callback.message.chat.id, marathon_start_date=start_date)
 
-    await callback.answer("Дата старта обновлена!")
+    await callback.answer(t('update.start_date_updated', lang))
     await callback.message.edit_text(
-        f"✅ Дата старта марафона изменена!\n\n"
-        f"Новая дата: *{start_date.strftime('%d.%m.%Y')}* ({date_text})\n\n"
-        f"/learn — продолжить обучение\n"
-        f"/update — обновить ещё что-то",
+        f"✅ {t('update.start_date_changed', lang)}\n\n"
+        f"{t('update.new_date', lang)}: *{start_date.strftime('%d.%m.%Y')}* ({date_text})\n\n"
+        f"{t('commands.learn', lang)}\n"
+        f"{t('commands.update', lang)}",
         parse_mode="Markdown"
     )
     await state.clear()
@@ -2679,7 +2683,7 @@ async def on_answer(message: Message, state: FSMContext, bot: Bot):
             return  # Остаёмся в состоянии waiting_for_answer
 
     if len(text.strip()) < 20:
-        await message.answer("Напишите подробнее (хотя бы 2-3 предложения)")
+        await message.answer(t('marathon.answer_too_short', lang))
         return
 
     # Сохраняем ответ
@@ -2914,7 +2918,7 @@ async def on_bonus_answer(message: Message, state: FSMContext, bot: Bot):
             return  # Остаёмся в состоянии waiting_for_bonus_answer
 
     if len(text.strip()) < 20:
-        await message.answer("Напишите подробнее (хотя бы 2-3 предложения)")
+        await message.answer(t('marathon.answer_too_short', lang))
         return
 
     # intern и lang уже получены выше
@@ -2954,26 +2958,27 @@ async def on_bonus_answer(message: Message, state: FSMContext, bot: Bot):
             await state.clear()
     except Exception as e:
         logger.error(f"Ошибка обработки бонусного ответа: {e}")
-        await message.answer(f"✅ Ответ принят!\n\n{t('marathon.next_command', lang)}")
+        await message.answer(f"✅ {t('marathon.topic_completed', lang)}\n\n{t('marathon.next_command', lang)}")
         await state.clear()
 
 @router.callback_query(LearningStates.waiting_for_answer, F.data == "skip_topic")
 async def on_skip_topic(callback: CallbackQuery, state: FSMContext):
     """Пропуск теоретической темы без ответа"""
     intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru') or 'ru'
 
     next_index = intern['current_topic_index'] + 1
     await update_intern(callback.message.chat.id, current_topic_index=next_index)
 
     topic = get_topic(intern['current_topic_index'])
-    topic_title = topic['title'] if topic else "тема"
+    topic_title = topic['title'] if topic else t('marathon.next_topic', lang)
 
-    await callback.answer("Тема пропущена")
+    await callback.answer(t('marathon.topic_skipped', lang))
     await callback.message.edit_text(
-        f"⏭ *Тема пропущена:* {topic_title}\n\n"
-        f"_Пропущенные темы не засчитываются в прогресс._\n\n"
-        f"/learn — следующая тема\n"
-        f"/progress — посмотреть прогресс",
+        f"⏭ *{t('marathon.topic_skipped_title', lang)}:* {topic_title}\n\n"
+        f"_{t('marathon.topic_skipped_hint', lang)}_\n\n"
+        f"{t('commands.learn', lang)}\n"
+        f"{t('commands.progress', lang)}",
         parse_mode="Markdown"
     )
     await state.clear()
@@ -3017,7 +3022,7 @@ async def on_work_product(message: Message, state: FSMContext):
             return  # Остаёмся в состоянии waiting_for_work_product
 
     if len(text.strip()) < 3:
-        await message.answer("Напишите хотя бы название рабочего продукта (например: «Список в заметках»)")
+        await message.answer(f"{t('marathon.wp_min_length', lang)} ({t('marathon.wp_example_text', lang)})")
         return
 
     # Сохраняем ответ (рабочий продукт)
@@ -3049,25 +3054,25 @@ async def on_work_product(message: Message, state: FSMContext):
     if day_completed >= len(day_topics):
         # День полностью завершён
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📊 Посмотреть прогресс", callback_data="go_progress")]
+            [InlineKeyboardButton(text=f"📊 {t('buttons.view_progress', lang)}", callback_data="go_progress")]
         ])
         await message.answer(
-            f"🎉 *День {marathon_day} завершён!*\n\n"
-            f"✅ Теория пройдена\n"
-            f"✅ Практика выполнена\n"
-            f"📝 РП: {text.strip()}\n\n"
+            f"🎉 *{t('marathon.day_done_title', lang, day=marathon_day)}*\n\n"
+            f"✅ {t('marathon.theory_done', lang)}\n"
+            f"✅ {t('marathon.practice_done', lang)}\n"
+            f"📝 {t('progress.wp_abbrev', lang)}: {text.strip()}\n\n"
             f"{progress_bar(done, total)}\n\n"
-            f"Отличная работа! Возвращайтесь завтра за новыми темами.",
+            f"{t('marathon.great_work', lang)}",
             reply_markup=keyboard,
             parse_mode="Markdown"
         )
     else:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📚 Следующая тема", callback_data="learn")]
+            [InlineKeyboardButton(text=f"📚 {t('buttons.next_topic', lang)}", callback_data="learn")]
         ])
         await message.answer(
-            f"✅ *Практика засчитана!*\n\n"
-            f"📝 РП: {text.strip()}\n\n"
+            f"✅ *{t('marathon.practice_accepted', lang)}*\n\n"
+            f"📝 {t('progress.wp_abbrev', lang)}: {text.strip()}\n\n"
             f"{progress_bar(done, total)}",
             reply_markup=keyboard,
             parse_mode="Markdown"
@@ -3080,19 +3085,20 @@ async def on_work_product(message: Message, state: FSMContext):
 async def on_skip_practice(callback: CallbackQuery, state: FSMContext):
     """Пропуск практической темы"""
     intern = await get_intern(callback.message.chat.id)
+    lang = intern.get('language', 'ru') or 'ru'
 
     next_index = intern['current_topic_index'] + 1
     await update_intern(callback.message.chat.id, current_topic_index=next_index)
 
     topic = get_topic(intern['current_topic_index'])
-    topic_title = topic['title'] if topic else "задание"
+    topic_title = topic['title'] if topic else t('marathon.task', lang)
 
-    await callback.answer("Задание пропущено")
+    await callback.answer(t('marathon.practice_skipped', lang))
     await callback.message.edit_text(
-        f"⏭ *Задание пропущено:* {topic_title}\n\n"
-        f"_Пропущенные задания не засчитываются в прогресс._\n\n"
-        f"/learn — следующая тема\n"
-        f"/progress — посмотреть прогресс",
+        f"⏭ *{t('marathon.practice_skipped_title', lang)}:* {topic_title}\n\n"
+        f"_{t('marathon.practice_skipped_hint', lang)}_\n\n"
+        f"{t('commands.learn', lang)}\n"
+        f"{t('commands.progress', lang)}",
         parse_mode="Markdown"
     )
     await state.clear()
