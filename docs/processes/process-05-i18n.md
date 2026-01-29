@@ -114,14 +114,23 @@ SUPPORTED_LANGUAGES = ['ru', 'en', 'es']
 
 ### 3.2. Чеклист нового языка
 
+#### UI и системные строки
 - [ ] Файл `i18n/translations/<lang>.yaml` создан
 - [ ] Все ключи из `schema.yaml` переведены
 - [ ] Плейсхолдеры сохранены (`{name}`, `{day}`, `{count}`)
-- [ ] `SUPPORTED_LANGUAGES` обновлён
-- [ ] `detect_language()` обновлён (маппинг похожих языков)
-- [ ] `get_language_name()` обновлён
-- [ ] UI выбора языка обновлён
-- [ ] Проверка пройдена: `python -m i18n.checker check --lang <lang>`
+- [ ] Проверка: `python -m i18n.checker check --lang <lang>`
+
+#### Код
+- [ ] `i18n/loader.py`: добавить язык в `SUPPORTED_LANGUAGES`
+- [ ] `i18n/loader.py`: добавить язык в `detect_language()` (маппинг похожих)
+- [ ] `i18n/loader.py`: добавить язык в `get_language_name()`
+- [ ] `bot.py`: добавить в `kb_languages()` если нужна кнопка выбора
+
+#### Контент марафона
+- [ ] `knowledge_structure.yaml`: добавить `title_<lang>` для 28 тем
+
+#### Fallback-темы Ленты
+- [ ] `engines/feed/planner.py`: добавить язык в `get_fallback_topics()`
 
 ---
 
@@ -277,9 +286,29 @@ progress:
 | `bot.py` | Все `message.answer()`, `edit_text()` |
 | `engines/mode_selector.py` | Режимы, настройки |
 | `engines/feed/handlers.py` | Лента, дайджесты |
-| `scheduler.py` | Напоминания |
+| `engines/feed/planner.py` | Fallback-темы в `get_fallback_topics()` |
+| `knowledge_structure.yaml` | Названия тем марафона (`title_en`, `title_es`) |
 
-### 7.2. Как найти захардкоженные строки
+### 7.2. Локализация контента марафона
+
+В `knowledge_structure.yaml` каждая тема имеет переведённые названия:
+
+```yaml
+- id: "day-1-theory"
+  title: "Четыре состояния"           # Русский (основной)
+  title_en: "Four States"              # Английский
+  title_es: "Cuatro estados"           # Испанский
+```
+
+**Для добавления нового языка:**
+1. Добавить поле `title_<lang>` для каждой из 28 тем
+2. Обновить `get_topic_title()` в `bot.py` если нужна особая логика
+
+### 7.3. Fallback-темы Ленты
+
+В `engines/feed/planner.py` функция `get_fallback_topics(lang)` возвращает локализованные темы при ошибке генерации. Для нового языка добавить переводы в словарь `fallback_topics`.
+
+### 7.4. Как найти захардкоженные строки
 
 ```bash
 # Поиск русских строк в await message.answer()
