@@ -2970,7 +2970,7 @@ async def on_bonus_answer(message: Message, state: FSMContext, bot: Bot):
             await state.clear()
     except Exception as e:
         logger.error(f"Ошибка обработки бонусного ответа: {e}")
-        await message.answer(f"✅ Ответ принят!\n\n{t('marathon.next_command', lang)}")
+        await message.answer(f"✅ {t('marathon.answer_accepted', lang)}\n\n{t('marathon.next_command', lang)}")
         await state.clear()
 
 @router.callback_query(LearningStates.waiting_for_answer, F.data == "skip_topic")
@@ -3063,25 +3063,25 @@ async def on_work_product(message: Message, state: FSMContext):
     if day_completed >= len(day_topics):
         # День полностью завершён
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📊 Посмотреть прогресс", callback_data="go_progress")]
+            [InlineKeyboardButton(text=f"📊 {t('buttons.view_progress', lang)}", callback_data="go_progress")]
         ])
         await message.answer(
-            f"🎉 *День {marathon_day} завершён!*\n\n"
-            f"✅ Теория пройдена\n"
-            f"✅ Практика выполнена\n"
-            f"📝 РП: {text.strip()}\n\n"
+            f"🎉 *{t('marathon.day_completed_title', lang, day=marathon_day)}*\n\n"
+            f"✅ {t('marathon.day_completed_theory', lang)}\n"
+            f"✅ {t('marathon.day_completed_practice', lang)}\n"
+            f"📝 {t('marathon.day_completed_wp', lang, work_product=text.strip())}\n\n"
             f"{progress_bar(done, total)}\n\n"
-            f"Отличная работа! Возвращайтесь завтра за новыми темами.",
+            f"{t('marathon.day_completed_great', lang)}",
             reply_markup=keyboard,
             parse_mode="Markdown"
         )
     else:
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📚 Следующая тема", callback_data="learn")]
+            [InlineKeyboardButton(text=f"📚 {t('buttons.next_topic_btn', lang)}", callback_data="learn")]
         ])
         await message.answer(
-            f"✅ *Практика засчитана!*\n\n"
-            f"📝 РП: {text.strip()}\n\n"
+            f"✅ *{t('marathon.practice_accepted', lang)}*\n\n"
+            f"📝 {t('marathon.day_completed_wp', lang, work_product=text.strip())}\n\n"
             f"{progress_bar(done, total)}",
             reply_markup=keyboard,
             parse_mode="Markdown"
@@ -3149,10 +3149,10 @@ async def send_topic(chat_id: int, state: Optional[FSMContext], bot: Bot):
     if topics_today >= MAX_TOPICS_PER_DAY:
         await bot.send_message(
             chat_id,
-            f"🎯 *Сегодня вы уже прошли {topics_today} тем — это максимум!*\n\n"
-            f"Лимит: *{MAX_TOPICS_PER_DAY} тем в день* (можно нагнать 1 день)\n\n"
-            f"Регулярность > Интенсивность\n\n"
-            f"Возвращайтесь завтра! Или в *{intern['schedule_time']}* я сам напомню.",
+            f"🎯 *{t('marathon.daily_limit_title', lang, count=topics_today)}*\n\n"
+            f"{t('marathon.daily_limit_info', lang, max=MAX_TOPICS_PER_DAY)}\n\n"
+            f"{t('marathon.daily_limit_motto', lang)}\n\n"
+            f"{t('marathon.daily_limit_return', lang, time=intern['schedule_time'])}",
             parse_mode="Markdown"
         )
         return

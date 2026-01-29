@@ -79,6 +79,8 @@ buttons:
   schedule: "Horario"
   difficulty: "Dificultad"
   bot_mode: "Modo bot"
+  view_progress: "Ver progreso"
+  next_topic_btn: "Siguiente tema"
   keep_topic: "Mantener así"
   write_fixation: "Escribir fijación"
   get_digest: "Obtener resumen"
@@ -361,6 +363,7 @@ reminders:
 
 errors:
   try_again: "Inténtalo de nuevo"
+  digest_load_error: "Error al cargar el resumen"
 
 fsm:
   unrecognized_onboarding: "No reconocí tu respuesta. Por favor, completa el registro o usa /start para comenzar de nuevo"
@@ -446,6 +449,17 @@ marathon:
   practices_list: "• Espacios de autodesarrollo\n• Rastreador de prácticas\n• Notas fugaces\n• Productos de trabajo"
   want_continue: "¿Quieres continuar desarrollándote?"
   workshop_full_link: "¡Visita el [Taller de Ingenieros-Gerentes](https://system-school.ru/)!"
+  day_completed_title: "¡Día {day} completado!"
+  day_completed_theory: "Teoría completada"
+  day_completed_practice: "Práctica completada"
+  day_completed_wp: "PT: {work_product}"
+  day_completed_great: "¡Excelente trabajo! Vuelve mañana para nuevos temas."
+  practice_accepted: "¡Práctica aceptada!"
+  answer_accepted: "¡Respuesta aceptada!"
+  daily_limit_title: "¡Ya has completado {count} temas hoy — es el máximo!"
+  daily_limit_info: "Límite: *{max} temas por día* (puedes recuperar 1 día)"
+  daily_limit_motto: "Regularidad > Intensidad"
+  daily_limit_return: "¡Vuelve mañana! O te recordaré a las *{time}*."
 
 feed:
   suggested_topics: "Temas Sugeridos"
