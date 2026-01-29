@@ -105,14 +105,14 @@ async def suggest_weekly_topics(intern: dict) -> List[Dict]:
 
     if not response:
         logger.error("Не удалось получить предложения тем от Claude")
-        return get_fallback_topics()
+        return get_fallback_topics(lang)
 
     # Парсим JSON из ответа
     topics = parse_topics_response(response)
 
     if not topics:
         logger.warning("Не удалось распарсить темы, используем fallback")
-        return get_fallback_topics()
+        return get_fallback_topics(lang)
 
     logger.info(f"Сгенерировано {len(topics)} тем для {name}")
     return topics
@@ -187,35 +187,92 @@ def parse_topics_response(response: str) -> List[Dict]:
     return []
 
 
-def get_fallback_topics() -> List[Dict]:
+def get_fallback_topics(lang: str = 'ru') -> List[Dict]:
     """Возвращает базовые темы если генерация не удалась"""
-    return [
-        {
-            "title": "Три состояния внимания",
-            "why": "Поможет концентрироваться на важном и меньше отвлекаться.",
-            "keywords": ["внимание", "осознанность", "фокус"],
-        },
-        {
-            "title": "Рабочий продукт практики",
-            "why": "Научит превращать действия в конкретные результаты.",
-            "keywords": ["продукт", "результат", "артефакт"],
-        },
-        {
-            "title": "Мемы и убеждения",
-            "why": "Поможет выявить ограничивающие установки в мышлении.",
-            "keywords": ["убеждения", "мемы", "трансформация"],
-        },
-        {
-            "title": "Инженерия себя",
-            "why": "Даст методы для осознанного изменения привычек.",
-            "keywords": ["саморазвитие", "методы", "привычки"],
-        },
-        {
-            "title": "Роли и исполнители",
-            "why": "Поможет разделять функции и конкретных людей.",
-            "keywords": ["роли", "функции", "исполнители"],
-        },
-    ]
+    fallback_topics = {
+        'ru': [
+            {
+                "title": "Три состояния внимания",
+                "why": "Поможет концентрироваться на важном и меньше отвлекаться.",
+                "keywords": ["внимание", "осознанность", "фокус"],
+            },
+            {
+                "title": "Рабочий продукт практики",
+                "why": "Научит превращать действия в конкретные результаты.",
+                "keywords": ["продукт", "результат", "артефакт"],
+            },
+            {
+                "title": "Мемы и убеждения",
+                "why": "Поможет выявить ограничивающие установки в мышлении.",
+                "keywords": ["убеждения", "мемы", "трансформация"],
+            },
+            {
+                "title": "Инженерия себя",
+                "why": "Даст методы для осознанного изменения привычек.",
+                "keywords": ["саморазвитие", "методы", "привычки"],
+            },
+            {
+                "title": "Роли и исполнители",
+                "why": "Поможет разделять функции и конкретных людей.",
+                "keywords": ["роли", "функции", "исполнители"],
+            },
+        ],
+        'en': [
+            {
+                "title": "Three States of Attention",
+                "why": "Helps focus on what matters and get less distracted.",
+                "keywords": ["attention", "awareness", "focus"],
+            },
+            {
+                "title": "Work Product of Practice",
+                "why": "Teaches to turn actions into concrete results.",
+                "keywords": ["product", "result", "artifact"],
+            },
+            {
+                "title": "Memes and Beliefs",
+                "why": "Helps identify limiting beliefs in thinking.",
+                "keywords": ["beliefs", "memes", "transformation"],
+            },
+            {
+                "title": "Self-Engineering",
+                "why": "Provides methods for conscious habit change.",
+                "keywords": ["self-development", "methods", "habits"],
+            },
+            {
+                "title": "Roles and Performers",
+                "why": "Helps separate functions from specific people.",
+                "keywords": ["roles", "functions", "performers"],
+            },
+        ],
+        'es': [
+            {
+                "title": "Tres estados de atención",
+                "why": "Ayuda a concentrarse en lo importante y distraerse menos.",
+                "keywords": ["atención", "conciencia", "enfoque"],
+            },
+            {
+                "title": "Producto de trabajo",
+                "why": "Enseña a convertir acciones en resultados concretos.",
+                "keywords": ["producto", "resultado", "artefacto"],
+            },
+            {
+                "title": "Memes y creencias",
+                "why": "Ayuda a identificar creencias limitantes en el pensamiento.",
+                "keywords": ["creencias", "memes", "transformación"],
+            },
+            {
+                "title": "Ingeniería personal",
+                "why": "Proporciona métodos para cambiar hábitos conscientemente.",
+                "keywords": ["autodesarrollo", "métodos", "hábitos"],
+            },
+            {
+                "title": "Roles y ejecutores",
+                "why": "Ayuda a separar funciones de personas específicas.",
+                "keywords": ["roles", "funciones", "ejecutores"],
+            },
+        ],
+    }
+    return fallback_topics.get(lang, fallback_topics['ru'])
 
 
 async def generate_multi_topic_digest(
