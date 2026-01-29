@@ -1302,6 +1302,8 @@ def load_knowledge_structure() -> tuple:
             'type': topic_type,  # theory / practice
             'section': section.get('title', f'Неделя {1 if day <= 7 else 2}'),
             'title': topic.get('title', ''),
+            'title_en': topic.get('title_en', ''),
+            'title_es': topic.get('title_es', ''),
             'main_concept': topic.get('main_concept', ''),
             'related_concepts': topic.get('related_concepts', []),
             'key_insight': topic.get('key_insight', ''),
