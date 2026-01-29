@@ -332,6 +332,17 @@ buttons:
     en: "Bot mode"
     max_length: 20
 
+  # Кнопки марафона
+  view_progress:
+    ru: "Посмотреть прогресс"
+    en: "View progress"
+    max_length: 25
+
+  next_topic_btn:
+    ru: "Следующая тема"
+    en: "Next topic"
+    max_length: 25
+
   # Кнопки Ленты
   keep_topic:
     ru: "Оставить как есть"
@@ -1401,6 +1412,10 @@ errors:
     ru: "Попробуй ещё раз"
     en: "Try again"
 
+  digest_load_error:
+    ru: "Ошибка загрузки дайджеста"
+    en: "Digest loading error"
+
 # -----------------------------------------------------------------------------
 # FSM fallback-сообщения
 # -----------------------------------------------------------------------------
@@ -1725,6 +1740,52 @@ marathon:
   workshop_full_link:
     ru: "Заходите в [Мастерскую инженеров-менеджеров](https://system-school.ru/)!"
     en: "Visit the [Engineer-Manager Workshop](https://system-school.ru/)!"
+
+  # День завершён / практика принята
+  day_completed_title:
+    ru: "День {day} завершён!"
+    en: "Day {day} completed!"
+
+  day_completed_theory:
+    ru: "Теория пройдена"
+    en: "Theory completed"
+
+  day_completed_practice:
+    ru: "Практика выполнена"
+    en: "Practice completed"
+
+  day_completed_wp:
+    ru: "РП: {work_product}"
+    en: "WP: {work_product}"
+
+  day_completed_great:
+    ru: "Отличная работа! Возвращайтесь завтра за новыми темами."
+    en: "Great job! Come back tomorrow for new topics."
+
+  practice_accepted:
+    ru: "Практика засчитана!"
+    en: "Practice accepted!"
+
+  answer_accepted:
+    ru: "Ответ принят!"
+    en: "Answer accepted!"
+
+  # Лимит тем в день
+  daily_limit_title:
+    ru: "Сегодня вы уже прошли {count} тем — это максимум!"
+    en: "You've already completed {count} topics today — that's the maximum!"
+
+  daily_limit_info:
+    ru: "Лимит: *{max} тем в день* (можно нагнать 1 день)"
+    en: "Limit: *{max} topics per day* (you can catch up 1 day)"
+
+  daily_limit_motto:
+    ru: "Регулярность > Интенсивность"
+    en: "Regularity > Intensity"
+
+  daily_limit_return:
+    ru: "Возвращайтесь завтра! Или в *{time}* я сам напомню."
+    en: "Come back tomorrow! Or I'll remind you at *{time}*."
 
 # -----------------------------------------------------------------------------
 # Лента (Feed)

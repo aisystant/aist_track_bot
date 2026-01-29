@@ -821,7 +821,8 @@ async def show_today_session(message: Message, engine: FeedEngine, state: FSMCon
         # Показываем ошибку для отладки
         trace_lines = error_trace.strip().split('\n')
         short_trace = '\n'.join(trace_lines[-6:])
-        await message.answer(f"Ошибка загрузки дайджеста:\n```\n{short_trace[:500]}\n```", parse_mode="Markdown")
+        lang = await get_user_lang(message.chat.id)
+        await message.answer(f"{t('errors.digest_load_error', lang)}:\n```\n{short_trace[:500]}\n```", parse_mode="Markdown")
 
 
 @feed_router.message(FeedStates.reading_content, F.text.func(lambda t: not t.startswith('/')))
