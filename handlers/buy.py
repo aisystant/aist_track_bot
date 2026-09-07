@@ -19,7 +19,7 @@ from aiogram.filters import Command
 
 from db.queries import get_intern
 from db.queries.aisystant import get_aisystant_id
-from clients.aisystant import aisystant
+from clients.aisystant import aisystant, parse_amount
 from i18n import t
 
 logger = logging.getLogger(__name__)
@@ -84,20 +84,20 @@ async def _show_buy_menu(message: Message, chat_id: int, aisystant_id: str, lang
         sub_btn,
     ])
 
-    # 3. Программы (все в продаже) — ниже
+    # 3. Программы (доступные лично пользователю, включая просроченные по дате
+    #    старта серии/семинары — WP-5, расхождение с @SystemsSchool_bot) — ниже
     try:
-        courses = await aisystant.get_available_courses()
+        courses = await aisystant.get_available_internships(aisystant_id)
         if courses:
             from handlers.schedule import _create_course_buttons, _format_date
             paid_courses = []
-            for course in courses[:8]:
+            for course in courses:
+                if course.get("nextPaymentIndex") is not None:
+                    continue  # открытая рассрочка — не новая покупка
                 code = course.get("code", "")
                 name = course.get("courseName", course.get("name", code))
                 raw_amount = course.get("price") or course.get("amount") or 0
-                try:
-                    amount = float(raw_amount)
-                except (TypeError, ValueError):
-                    amount = 0
+                amount = parse_amount(raw_amount)
                 if amount > 0:
                     start = _format_date(course.get("started", ""), lang)
                     price = f"{int(amount):,}".replace(",", " ")

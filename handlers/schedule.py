@@ -39,7 +39,7 @@ from aiogram.filters import Command
 from db.queries import get_intern
 from db.queries.aisystant import get_aisystant_id
 from db.queries.redeem import cancel_pending_reserve, confirm_course_reserves, update_reserve_payment_id
-from clients.aisystant import aisystant
+from clients.aisystant import aisystant, parse_amount
 from helpers.redeem_helpers import build_burn_offer_keyboard, prepare_burn_offer, reserve_for_yookassa_provisional
 from i18n import t
 
@@ -366,10 +366,7 @@ async def callback_course_detail(callback: CallbackQuery):
 
         name = course.get("courseName", course.get("name", code))
         raw_amount = course.get("amount") or course.get("price") or 0
-        try:
-            amount = float(raw_amount)
-        except (TypeError, ValueError):
-            amount = 0
+        amount = parse_amount(raw_amount)
 
         if amount > 0:
             text = t('schedule.payment_confirm', lang, course=name, amount=int(amount))
