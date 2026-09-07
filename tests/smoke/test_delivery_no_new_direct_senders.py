@@ -159,7 +159,7 @@ ALLOWED_DIRECT_SENDERS: frozenset[tuple[str, str]] = frozenset({
 ("core/tier_detector.py", "_notify_downgrade"),
 ("core/tier_detector.py", "_notify_external_client_available"),
 ("core/unstick.py", "recover_user"),
-("db/connection.py", "_verify_schema._alert"),
+("db/connection.py", "_send_schema_alert"),  # renamed 2026-09-07 (РП-246 Ф2): shared by schema-drift and REQUIRED_FOR_MONEY alerts
 ("engines/feed/handlers.py", "show_topic_selection_direct"),
 ("engines/tailor/bot_adapter.py", "BotTailorAdapter.deliver"),
 ("engines/tailor/delivery.py", "notify_tailor_lesson"),

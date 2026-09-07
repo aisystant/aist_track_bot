@@ -601,29 +601,9 @@ async def _verify_schema(pool: asyncpg.Pool) -> None:
     if missing:
         msg = f"Schema drift detected: {', '.join(missing)} missing. Run migrations."
         logger.error(f"❌ {msg} (non-fatal — bot continues, see WP-330 A-zero)")
-        # Fire-and-forget TG alert (best effort — bot not fully started yet)
-        async def _alert():
-            try:
-                import os
-                token = os.getenv("TELEGRAM_BOT_TOKEN")
-                dev_chat = os.getenv("DEVELOPER_CHAT_ID")
-                if token and dev_chat:
-                    from aiogram import Bot
-                    bot = Bot(token=token)
-                    try:
-                        await bot.send_message(
-                            int(dev_chat),
-                            f"🚨 <b>Schema drift</b> (non-fatal)\n<code>{msg}</code>",
-                            parse_mode="HTML",
-                        )
-                    finally:
-                        await bot.session.close()
-            except Exception:
-                pass
         # Await напрямую (а не detached task): init_db выполняется до start_polling,
         # detached task мог не успеть выполниться до рестарта → алерт терялся.
-        # _alert полностью обёрнут в try/except → не может пробросить исключение.
-        await _alert()
+        await _send_schema_alert(f"🚨 <b>Schema drift</b> (non-fatal)\n<code>{msg}</code>")
         # NON-FATAL: НЕ raise — страж не должен крэшить прод.
         return
 
@@ -631,6 +611,76 @@ async def _verify_schema(pool: asyncpg.Pool) -> None:
         "✅ Schema verify passed (learning.feed_sessions, journal.feedback_triage, "
         "learning.consent_grant, public.training_setting)"
     )
+
+
+async def _send_schema_alert(text: str) -> None:
+    """Best-effort Telegram alert to the developer chat. Never raises: the bot
+    is not fully started yet and the caller decides what to do next."""
+    try:
+        import os
+        token = os.getenv("TELEGRAM_BOT_TOKEN")
+        dev_chat = os.getenv("DEVELOPER_CHAT_ID")
+        if not (token and dev_chat):
+            return
+        from aiogram import Bot
+        bot = Bot(token=token)
+        try:
+            await bot.send_message(int(dev_chat), text, parse_mode="HTML")
+        finally:
+            await bot.session.close()
+    except Exception as exc:
+        logger.warning(f"[schema-verify] alert not sent: {exc}")
+
+
+# REQUIRED_FOR_MONEY — tables the payment paths write to, each paired with the
+# pool that path actually uses (verify-pool == write-pool, see _verify_schema
+# docstring). Membership rule: "without it a payment is lost or cannot be
+# processed" — nothing else belongs here.
+def _required_for_money_tables():
+    """(table, pool getter) pairs; built at call time so the getters below in
+    this module are already defined whatever the declaration order."""
+    return (
+        ("public.finance_payments", get_bot_data_pool),      # seminar path (handlers/showcase.py)
+        ("public.workshop_payments", get_pool),              # workshop path (handlers/workshop.py)
+        ("public.internship_payment_checks", get_pool),      # internship polling (044, core/scheduler.py)
+    )
+
+
+async def _missing_money_tables() -> list[str]:
+    """Return REQUIRED_FOR_MONEY tables absent from their own pools."""
+    missing: list[str] = []
+    for table, get_table_pool in _required_for_money_tables():
+        pool = await get_table_pool()
+        async with pool.acquire() as conn:
+            if not await conn.fetchval("SELECT to_regclass($1)", table):
+                missing.append(f"{table}@{get_table_pool.__name__}")
+    return missing
+
+
+async def verify_money_tables() -> None:
+    """Fail-fast guard for REQUIRED_FOR_MONEY tables. Call it AFTER the startup
+    migrations in bot.main(): an environment whose role can CREATE (pilot, dev)
+    must get the chance to heal itself first. In prod the role cannot create
+    tables (SKIP_DB_MIGRATIONS=true + "permission denied for schema public",
+    startup log 2026-09-07), so a missing table is never self-healing there —
+    the DB owner applies the DDL, and until then this revision must not serve
+    traffic. РП-246 Ф2: workshop_payments was missing for four months and every
+    workshop webhook answered 500."""
+    try:
+        missing = await _missing_money_tables()
+    except Exception as exc:
+        logger.critical(f"❌ REQUIRED_FOR_MONEY check failed (could not query, not 'missing'): {exc}")
+        raise
+    if missing:
+        msg = (
+            f"REQUIRED_FOR_MONEY tables missing: {', '.join(missing)}. "
+            "Apply the owner DDL (РП-246, bug-2026-09-07-bot-workshop-payments-table-missing) "
+            "before deploying this revision."
+        )
+        logger.critical(f"❌ {msg}")
+        await _send_schema_alert(f"🚨 <b>REQUIRED_FOR_MONEY</b> (fatal, deploy stopped)\n<code>{msg}</code>")
+        raise RuntimeError(msg)
+    logger.info("✅ REQUIRED_FOR_MONEY tables present: " + ", ".join(t for t, _ in _required_for_money_tables()))
 
 
 async def init_db():
