@@ -118,6 +118,21 @@ async def _validate_middleware():
     logger.info("✅ Middleware validation passed")
 
 
+def _log_migration_skipped(label: str, exc: Exception) -> None:
+    """A startup migration did not apply. Permission errors are not transient:
+    prod runs with SKIP_DB_MIGRATIONS=true and the bot role cannot CREATE in the
+    schema, so the table stays missing until the DB owner applies the DDL by hand
+    (РП-246 Ф2, 2026-09-07: 043/044 were "skipped" this way and nobody noticed)."""
+    import asyncpg
+    if isinstance(exc, asyncpg.InsufficientPrivilegeError):
+        logger.error(
+            f"❌ Migration {label} NOT applied: {exc}. The bot role cannot create tables — "
+            "apply the migration DDL as the database owner (see db/migrations/README or РП-246).",
+        )
+        return
+    logger.warning(f"⚠️ Migration {label} skipped: {exc}", exc_info=True)
+
+
 async def _bootstrap_learning_schema() -> None:
     """Migrações de learning-pool rodadas em background após o web server subir.
 
@@ -234,10 +249,14 @@ async def main():
         else:
             logger.info("✅ Migration 043: nudge_receipt уже существует")
     except Exception as _e:
-        logger.warning(f"⚠️ Migration 043 (nudge_receipt) skipped: {_e}", exc_info=True)
+        _log_migration_skipped("043 (nudge_receipt)", _e)
 
     # Миграция 044: internship_payment_checks — доставка приглашения в чат
     # потока после оплаты программы/резидентуры/семинара (WP-5).
+    # NB: 009 (workshop_payments, community_members) и 011 (seminars,
+    # seminar_payments) — ручные скрипты, при старте НЕ вызываются. 009-таблицы
+    # создаёт владелец базы (РП-246 Ф2, 2026-09-07); 011-таблицы код не читает
+    # (showcase пишет в finance_payments) — скрипт оставлен как история WP-5.
     try:
         _m044 = _il.import_module("db.migrations.044_internship_payment_checks")
         if await _m044.migrate_if_needed(await _get_pool()):
@@ -245,7 +264,13 @@ async def main():
         else:
             logger.info("✅ Migration 044: internship_payment_checks уже существует")
     except Exception as _e:
-        logger.warning(f"⚠️ Migration 044 (internship_payment_checks) skipped: {_e}", exc_info=True)
+        _log_migration_skipped("044 (internship_payment_checks)", _e)
+
+    # Fail-fast для денежных таблиц — ПОСЛЕ стартовых миграций выше, чтобы среда,
+    # где роль умеет CREATE (пилот, dev), сначала вылечила себя сама. Падение здесь
+    # = /health не поднимется = Railway не переключит трафик на эту ревизию.
+    from db.connection import verify_money_tables
+    await verify_money_tables()
 
     # Миграция 037: scheduled_post — дедупликация + atomic publish lock (WP-167).
     # Индекс + статус 'publishing' защищают от дублей при публикации в клуб.
