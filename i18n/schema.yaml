@@ -5603,6 +5603,9 @@ schedule:
   my_course_item:
     ru: "• *{name}*\n  Статус: {status}"
     en: "• *{name}*\n  Status: {status}"
+  my_course_item_with_chat:
+    ru: "• *{name}*\n  Статус: {status}\n  Чат: {link}"
+    en: "• *{name}*\n  Status: {status}\n  Chat: {link}"
 
   # Payment
   payment_confirm:
@@ -5922,6 +5925,26 @@ buy:
   payment_note:
     ru: "\n💡 Оплата юр. лиц и по иностранным картам. Пишите @Gelya1848"
     en: "\n💡 For legal entity payments or foreign cards, contact @Gelya1848"
+
+# -----------------------------------------------------------------------------
+# Доставка приглашения после оплаты программы/резидентуры/семинара (WP-5)
+# -----------------------------------------------------------------------------
+internship:
+  btn_join_chat:
+    ru: "💬 Вступить в чат"
+    en: "💬 Join the chat"
+  payment_success_with_link:
+    ru: "✅ Оплата за *{course}* прошла успешно!\n\nНажмите кнопку ниже, чтобы вступить в чат потока."
+    en: "✅ Payment for *{course}* succeeded!\n\nTap the button below to join the group chat."
+  payment_success_no_link:
+    ru: "✅ Оплата за *{course}* прошла успешно!\n\nСсылка на чат появится в разделе «Мои программы» (/schedule), как только организаторы её добавят."
+    en: "✅ Payment for *{course}* succeeded!\n\nThe chat link will appear under “My programs” (/schedule) once the organizers add it."
+  payment_failed:
+    ru: "⚠️ Оплата за *{course}* не прошла. Попробуйте оплатить снова через /buy или напишите нам, если деньги списались."
+    en: "⚠️ Payment for *{course}* failed. Try paying again via /buy, or contact us if the money was charged."
+  payment_gave_up:
+    ru: "Не смогли подтвердить статус оплаты за *{course}* автоматически. Проверьте раздел «Мои программы» (/schedule) или напишите нам."
+    en: "Couldn't confirm the payment status for *{course}* automatically. Check “My programs” (/schedule) or contact us."
 
 # ═══════════════════════════════════════════════════════════
 # Info-команды: навигационные landing pages
