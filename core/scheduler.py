@@ -1171,6 +1171,7 @@ def init_scheduler(bot_dispatcher, aiogram_dispatcher, bot_token: str) -> AsyncI
     _scheduler.add_job(_recheck_blocked_users, 'cron', hour=6, minute=0)  # BFS2: recheck blocked users daily 06:00
     _scheduler.add_job(_rollback_expired_burn_reservations, 'cron', minute='*/5')  # WP-327: откат «зависших» резервов баллов (>30 мин)
     _scheduler.add_job(_confirm_pending_course_payments, 'cron', minute='*/10', max_instances=1)  # WP-446 Ф3b: проактивное подтверждение курсовых резервов
+    _scheduler.add_job(_check_pending_internship_payments, 'cron', minute='*/2', max_instances=1)  # WP-5: доставка ссылки на чат после оплаты INTERNSHIP (нет вебхука от Aisystant)
 
     _scheduler.add_job(_discourse_typing_collect, 'cron', hour=3, minute=30)   # WP-327 Phase 3б: Discourse typing collection 03:30 UTC
     _scheduler.add_job(_discourse_typing_collect, 'cron', hour=17, minute=0)  # WP-327 Phase 3б: второй запуск 20:00 МСК
@@ -2202,6 +2203,96 @@ async def _confirm_pending_course_payments():
             logger.info(f"[Scheduler] WP-446: confirmed {confirmed}/{len(pending)} pending course reserve(s)")
     except Exception as e:
         logger.warning(f"[Scheduler] confirm_pending_course_payments failed: {e}")
+
+
+async def _check_pending_internship_payments():
+    """WP-5: доставка ссылки на чат потока после оплаты программы (purpose=INTERNSHIP).
+
+    create_internship_payment() отдаёт confirmationUrl, но Aisystant НЕ шлёт
+    вебхук о завершении такой оплаты (в отличие от SEMINAR/WORKSHOP — см.
+    oauth_server.py workshop_payment_handler, там ветки только на эти два
+    purpose). Старый бот (@SystemsSchool_bot) закрывает это поллингом
+    (threading.Timer + check-payment); здесь тот же поллинг — async cron,
+    т.к. threading.Timer несовместим с event loop aiogram.
+
+    Доставка — через core.notification_service.enqueue (WP-418 Доставщик),
+    не напрямую bot.send_message: этот модуль — новый отправитель, не входит
+    в pre-existing allowlist tests/smoke (WP-418 Ф3/Ф4), а прод уже держит
+    DELIVERY_LAYER_ENABLED=true (проверено 07.09.2026).
+
+    chatLink достаём из get_user_courses() (crm-course-passings), не из
+    ответа check-payment — там его нет. Обнаружено живьём 07.09.2026:
+    оплата 8000₽ за "Семинар: Интеллектуальная рабочая среда 2.0" ушла
+    молча, пользователь так и не получил ссылку на вход в чат.
+    """
+    from clients.aisystant import aisystant, find_potok_chat_link
+    from core.notification_service import enqueue, CLASS_CRITICAL
+    from db.queries.internship_payments import MAX_CHECK_ATTEMPTS, get_pending_checks, record_check_attempt
+    from i18n import t
+
+    pending = await get_pending_checks()
+    if not pending:
+        return
+
+    for row in pending:
+        check_id = row["id"]
+        lang = row["lang"] or "ru"
+        course_name = row["course_name"]
+        try:
+            result = await aisystant.check_payment(row["payment_id"], row["aisystant_id"])
+            status = (result or {}).get("paymentCheckResult")
+
+            if status == "SUCCEEDED":
+                chat_link = None
+                try:
+                    courses = await aisystant.get_user_courses(row["aisystant_id"])
+                    chat_link, found_name = find_potok_chat_link(courses, row["code"])
+                    course_name = found_name or course_name
+                except Exception as lookup_err:
+                    logger.warning(f"[Scheduler] WP-5: chatLink lookup failed for code={row['code']}: {lookup_err}")
+
+                key = 'internship.payment_success_with_link' if chat_link else 'internship.payment_success_no_link'
+                content_spec = {"text": t(key, lang, course=course_name), "format": "markdown"}
+                if chat_link:
+                    content_spec["actions"] = [{"label": t('internship.btn_join_chat', lang), "url": chat_link}]
+                # enqueue() ПЕРЕД record_check_attempt: enqueue идемпотентен по
+                # dedup_key (CLASS_CRITICAL, окно 24ч — core/notification_service.py
+                # _is_duplicate), а resolved_status="succeeded" — нет (get_pending_checks
+                # больше не вернёт эту строку). Если процесс упадёт между двумя
+                # вызовами, обратный порядок навсегда терял бы уведомление; в этом
+                # порядке следующий цикл просто повторит check-payment + enqueue
+                # (второй enqueue задедуплицируется) и лишь затем пометит resolved.
+                await enqueue(
+                    row["telegram_id"], CLASS_CRITICAL, content_spec,
+                    dedup_key=f"internship-payment-{row['payment_id']}",
+                    journal_type="internship_payment_success",
+                )
+                await record_check_attempt(check_id, resolved_status="succeeded")
+                logger.info(f"[Scheduler] WP-5: internship payment delivered, tg={row['telegram_id']}, code={row['code']}, has_link={bool(chat_link)}")
+
+            elif status == "FAILED":
+                content_spec = {"text": t('internship.payment_failed', lang, course=course_name), "format": "markdown"}
+                await enqueue(
+                    row["telegram_id"], CLASS_CRITICAL, content_spec,
+                    dedup_key=f"internship-payment-failed-{row['payment_id']}",
+                    journal_type="internship_payment_failed",
+                )
+                await record_check_attempt(check_id, resolved_status="failed")
+
+            elif row["attempts"] + 1 >= MAX_CHECK_ATTEMPTS:
+                content_spec = {"text": t('internship.payment_gave_up', lang, course=course_name), "format": "markdown"}
+                await enqueue(
+                    row["telegram_id"], CLASS_CRITICAL, content_spec,
+                    dedup_key=f"internship-payment-gaveup-{row['payment_id']}",
+                    journal_type="internship_payment_gaveup",
+                )
+                await record_check_attempt(check_id, resolved_status="gave_up")
+                logger.warning(f"[Scheduler] WP-5: internship payment check gave up, tg={row['telegram_id']}, code={row['code']}")
+
+            else:
+                await record_check_attempt(check_id)
+        except Exception as row_err:
+            logger.warning(f"[Scheduler] WP-5: internship payment check failed for id={check_id}: {row_err}")
 
 
 async def _better_stack_heartbeat():

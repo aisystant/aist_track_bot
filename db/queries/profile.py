@@ -41,6 +41,7 @@ OPTIONAL_CHAT_TABLES = [
     ('dt_tokens', 'chat_id'),
     ('github_connections', 'chat_id'),
     ('google_calendar_connections', 'chat_id'),
+    ('internship_payment_checks', 'telegram_id'),
     ('oauth_pending_states', 'telegram_user_id'),
     ('ory_tokens', 'chat_id'),
     ('published_posts', 'chat_id'),

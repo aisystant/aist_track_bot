@@ -116,7 +116,7 @@ async def _show_buy_menu(message: Message, chat_id: int, aisystant_id: str, lang
                 paid_courses.append((code, btn_name, int(amount)))
             if paid_courses:
                 buttons.extend(await _create_course_buttons(
-                    aisystant_id, paid_courses, lang, emoji="📚",
+                    aisystant_id, paid_courses, lang, chat_id, emoji="📚",
                 ))
             lines.append("")
     except Exception as e:

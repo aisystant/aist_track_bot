@@ -236,6 +236,17 @@ async def main():
     except Exception as _e:
         logger.warning(f"⚠️ Migration 043 (nudge_receipt) skipped: {_e}", exc_info=True)
 
+    # Миграция 044: internship_payment_checks — доставка приглашения в чат
+    # потока после оплаты программы/резидентуры/семинара (WP-5).
+    try:
+        _m044 = _il.import_module("db.migrations.044_internship_payment_checks")
+        if await _m044.migrate_if_needed(await _get_pool()):
+            logger.info("✅ Migration 044: internship_payment_checks создана")
+        else:
+            logger.info("✅ Migration 044: internship_payment_checks уже существует")
+    except Exception as _e:
+        logger.warning(f"⚠️ Migration 044 (internship_payment_checks) skipped: {_e}", exc_info=True)
+
     # Миграция 037: scheduled_post — дедупликация + atomic publish lock (WP-167).
     # Индекс + статус 'publishing' защищают от дублей при публикации в клуб.
     try:
