@@ -50,6 +50,16 @@ PROGRAM_RULES: list[tuple[str, Any]] = [
 EXCLUDE_CODES = ["Urspectr"]
 
 
+def parse_amount(value: Any) -> float:
+    """Нормализовать цену из Aisystant API: число, строка, с пробелами/NBSP или None."""
+    if value is None:
+        return 0.0
+    try:
+        return float("".join(str(value).split()))
+    except (TypeError, ValueError):
+        return 0.0
+
+
 class AisystantError(Exception):
     """Non-200 response from Aisystant API. Callers use except AisystantError or except Exception."""
 
