@@ -86,11 +86,14 @@ async def _show_buy_menu(message: Message, chat_id: int, aisystant_id: str, lang
 
     # 3. Программы (доступные лично пользователю, включая просроченные по дате
     #    старта серии/семинары — WP-5, расхождение с @SystemsSchool_bot) — ниже
+    # Пилот попросил закрепить семинар «Интеллектуальная рабочая среда» вторым
+    # пунктом (сразу под витриной семинаров/подпиской), не полагаясь на порядок API.
+    PINNED_NAME_SUBSTRING = "интеллектуальная рабочая среда"
     try:
         courses = await aisystant.get_available_internships(aisystant_id)
         if courses:
             from handlers.schedule import _create_course_buttons, _format_date
-            paid_courses = []
+            entries = []
             for course in courses:
                 if course.get("nextPaymentIndex") is not None:
                     continue  # открытая рассрочка — не новая покупка
@@ -99,13 +102,18 @@ async def _show_buy_menu(message: Message, chat_id: int, aisystant_id: str, lang
                 raw_amount = course.get("price") or course.get("amount") or 0
                 amount = parse_amount(raw_amount)
                 if amount > 0:
-                    start = _format_date(course.get("started", ""), lang)
-                    price = f"{int(amount):,}".replace(",", " ")
-                    lines.append(f"• *{name}*\n  Старт: {start}. {price} ₽")
-                    btn_name = name.strip()
-                    if len(btn_name) > 30:
-                        btn_name = btn_name[:27] + "..."
-                    paid_courses.append((code, btn_name, int(amount)))
+                    entries.append((code, name, amount, course.get("started", "")))
+            entries.sort(key=lambda e: PINNED_NAME_SUBSTRING not in e[1].lower())
+
+            paid_courses = []
+            for code, name, amount, started in entries:
+                start = _format_date(started, lang)
+                price = f"{int(amount):,}".replace(",", " ")
+                lines.append(f"• *{name}*\n  Старт: {start}. {price} ₽")
+                btn_name = name.strip()
+                if len(btn_name) > 30:
+                    btn_name = btn_name[:27] + "..."
+                paid_courses.append((code, btn_name, int(amount)))
             if paid_courses:
                 buttons.extend(await _create_course_buttons(
                     aisystant_id, paid_courses, lang, emoji="📚",
