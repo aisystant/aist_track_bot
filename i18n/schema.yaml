@@ -5838,6 +5838,10 @@ aisystant_sub:
     ru: "✅ Подписка «Инженерия интеллекта» активна."
     en: "✅ «Intelligence Engineering» subscription is active."
 
+  already_active_with_email:
+    ru: "✅ Подписка «Инженерия интеллекта» активна.\n\nОформлена на аккаунт: {email}"
+    en: "✅ «Intelligence Engineering» subscription is active.\n\nLinked account: {email}"
+
   no_account:
     ru: "Сначала привяжите аккаунт Aisystant.\n\nНажмите /link"
     en: "First, link your Aisystant account.\n\nPress /link"
