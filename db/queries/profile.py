@@ -609,6 +609,37 @@ async def delete_all_user_data(chat_id: int) -> dict:
         result['user_sessions'] = 0
         result['request_traces'] = 0
 
+    # WP-554 Ф9: identity-финализатор. `not failures` gate — ory_identity
+    # остаётся резолвируемым (см. account_id lookup выше) для повторной
+    # попытки, если любая предыдущая нога упала. result.update() только
+    # после commit — rollback не должен оставлять в result чужие счётчики.
+    # Известное ограничение: "нет ory_identity" неотличимо от "уже удалено
+    # ранее" — полное H-306 требует durable job/tombstone, не строится тут.
+    if not failures:
+        try:
+            from db.connection import get_persona_pool
+            persona_result: dict[str, int] = {}
+            persona_pool = await get_persona_pool()
+            async with persona_pool.acquire() as pconn:
+                async with pconn.transaction():
+                    deleted = await pconn.execute(
+                        'DELETE FROM public.bot_profile WHERE chat_id = $1 OR account_id = $2',
+                        chat_id, account_id,
+                    )
+                    persona_result['persona_bot_profile'] = _parse_delete_count(deleted)
+                    if account_id:
+                        deleted = await pconn.execute(
+                            'DELETE FROM public.consent_grants WHERE account_id = $1', account_id
+                        )
+                        persona_result['persona_consent_grants'] = _parse_delete_count(deleted)
+                        deleted = await pconn.execute(
+                            'DELETE FROM public.ory_identity WHERE account_id = $1', account_id
+                        )
+                        persona_result['persona_ory_identity'] = _parse_delete_count(deleted)
+            result.update(persona_result)
+        except Exception as e:
+            _record_required_cleanup_failure(failures, "persona.identity_finalizer", e)
+
     total = sum(result.values())
     logger.info(
         "[DELETE] completed %d row deletions across %d counters; failed legs=%d",
