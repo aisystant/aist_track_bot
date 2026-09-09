@@ -17,6 +17,7 @@ from aiogram.types import (
 )
 from aiogram.filters import Command
 
+from core.tier_detector import has_active_subscription
 from db.queries import get_intern
 from db.queries.aisystant import get_aisystant_id
 from clients.aisystant import aisystant, parse_amount
@@ -55,7 +56,7 @@ async def _show_buy_menu(message: Message, chat_id: int, aisystant_id: str, lang
 
     # 1. Витрина семинаров + Подписка БР — в одном ряду
     try:
-        is_active = await aisystant.has_active_subscription(aisystant_id)
+        is_active = await has_active_subscription(chat_id, aisystant_id)
         if is_active:
             lines.append(t('buy.sub_active', lang))
             sub_btn = InlineKeyboardButton(

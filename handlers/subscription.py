@@ -19,6 +19,7 @@ from aiogram.types import (
 )
 from aiogram.filters import Command
 
+from core.tier_detector import has_active_subscription
 from db.queries import get_intern
 from db.queries.aisystant import get_aisystant_id
 from db.queries.redeem import cancel_pending_reserve, confirm_subscription_reserves, update_reserve_payment_id
@@ -120,9 +121,9 @@ async def cmd_subscription(message: Message):
         await message.answer(t('aisystant_sub.no_account', lang))
         return
 
-    # Проверяем, активна ли уже
+    # Проверяем, активна ли уже (с запасным путём по contract, WP-7 Ф128)
     try:
-        is_active = await aisystant.has_active_subscription(aisystant_id)
+        is_active = await has_active_subscription(chat_id, aisystant_id)
         if is_active:
             # Lazy-confirm: subscription webhook never reaches the bot (payment goes via
             # Aisystant), so pending SUBSCRIPTION reserves must be confirmed here.
