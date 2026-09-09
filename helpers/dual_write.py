@@ -198,6 +198,30 @@ async def resolve_ory_id_from_chat(chat_id: int) -> Optional[str]:
     return ory
 
 
+async def get_email_from_ory_id(account_id: str) -> Optional[str]:
+    """Email аккаунта Aisystant по account_id (persona.ory_identity.traits->>'email').
+
+    Для отображения пользователю, какой именно email привязан к его подписке
+    (WP-7 Ф133 follow-up — путаница из-за нескольких telegram-аккаунтов на
+    одного человека, разные подписки на разных email). Fire-and-forget: любая
+    ошибка возвращает None, не должна ломать вызывающий код.
+    """
+    try:
+        from db.connection import get_persona_pool
+        pool = await get_persona_pool()
+        async with traced_acquire(pool, "db.get_email_from_ory_id") as conn:
+            return await conn.fetchval(
+                "SELECT traits->>'email' FROM public.ory_identity WHERE account_id = $1::uuid",
+                account_id,
+            )
+    except Exception as exc:
+        logger.warning(
+            "[dual-write] get_email_from_ory_id failed: %s",
+            type(exc).__name__,
+        )
+        return None
+
+
 async def emit_payment_received(
     *,
     provider: str,
